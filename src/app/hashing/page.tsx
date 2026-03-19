@@ -16,7 +16,7 @@ export default function HashingPage() {
   const [pwnedStatus, setPwnedStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    init('/pkg/wasm_crypto_bg.wasm').then(() => setIsReady(true)).catch(console.error);
+    init({ module_or_path: '/pkg/wasm_crypto_bg.wasm' }).then(() => setIsReady(true)).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -47,13 +47,13 @@ export default function HashingPage() {
       for (const line of lines) {
         if (line.startsWith(suffix)) {
           const count = line.split(':')[1].trim();
-          setPwnedStatus(`⚠️ This password has been seen ${count} times in data breaches! (k-anonymity verified)`);
+          setPwnedStatus(`[WARNING] This password has been seen ${count} times in data breaches! (k-anonymity verified)`);
           found = true;
           break;
         }
       }
       if (!found) {
-        setPwnedStatus("✅ Good news! This password was not found in known data breaches.");
+        setPwnedStatus("[OK] Good news! This password was not found in known data breaches.");
       }
     } catch (e) {
       console.error(e);
@@ -116,7 +116,7 @@ export default function HashingPage() {
           >Check Have I Been Pwned (Prefix: {sha1Hash.substring(0, 5).toUpperCase()})</button>
 
           {pwnedStatus && (
-            <div className="animate-fade-in" style={{ marginTop: '1rem', padding: '1rem', background: pwnedStatus.includes('⚠️') ? 'rgba(255, 68, 68, 0.1)' : 'rgba(0, 255, 0, 0.1)', border: `1px solid ${pwnedStatus.includes('⚠️') ? '#ff4444' : '#00ff00'}`, borderRadius: '8px' }}>
+            <div className="animate-fade-in" style={{ marginTop: '1rem', padding: '1rem', background: pwnedStatus.includes('[WARNING]') ? 'rgba(255, 68, 68, 0.1)' : 'rgba(0, 255, 0, 0.1)', border: `1px solid ${pwnedStatus.includes('[WARNING]') ? '#ff4444' : '#00ff00'}`, borderRadius: '8px' }}>
               {pwnedStatus}
             </div>
           )}

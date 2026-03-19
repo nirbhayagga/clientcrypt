@@ -15,7 +15,7 @@ export default function BlockCiphersPage() {
   const [hexOutput, setHexOutput] = useState('');
 
   useEffect(() => {
-    init('/pkg/wasm_crypto_bg.wasm').then(() => setIsReady(true)).catch(console.error);
+    init({ module_or_path: '/pkg/wasm_crypto_bg.wasm' }).then(() => setIsReady(true)).catch(console.error);
   }, []);
 
   const handleExecute = () => {
@@ -112,21 +112,21 @@ export default function BlockCiphersPage() {
          <div style={{ display: 'flex', gap: '2rem', justifyContent: 'space-between', alignItems: 'center' }}>
            <div style={{ flex: 1, textAlign: 'center' }}>
              <div style={{ width: '100%', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ccc', color: '#111', fontWeight: 'bold', fontSize: '2rem', borderRadius: '8px' }}>
-               🐧
+               [IMAGE]
              </div>
              <p style={{ marginTop: '0.5rem', fontWeight: 500 }}>Original Image</p>
            </div>
            
-           <div style={{ fontSize: '2rem', opacity: 0.5 }}>→</div>
+           <div style={{ fontSize: '2rem', opacity: 0.5 }}>-&gt;</div>
            
            <div style={{ flex: 1, textAlign: 'center' }}>
              <div style={{ width: '100%', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle, #333 10px, #111 11px) 0 0 / 20px 20px', borderRadius: '8px'}}>
-               <span style={{ fontSize: '2rem', filter: 'grayscale(100%) contrast(1000%)' }}>🐧</span>
+               <span style={{ fontSize: '2rem', filter: 'grayscale(100%) contrast(1000%)' }}>[IMAGE]</span>
              </div>
              <p style={{ marginTop: '0.5rem', fontWeight: 500, color: 'var(--accent-cyan)' }}>ECB Mode (Leaks Pattern)</p>
            </div>
            
-           <div style={{ fontSize: '2rem', opacity: 0.5 }}>→</div>
+           <div style={{ fontSize: '2rem', opacity: 0.5 }}>-&gt;</div>
            
            <div style={{ flex: 1, textAlign: 'center' }}>
              <div style={{ width: '100%', aspectRatio: '1', background: 'repeating-linear-gradient(45deg, #111, #111 10px, #222 10px, #222 20px)', borderRadius: '8px', opacity: 0.8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

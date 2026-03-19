@@ -17,7 +17,7 @@ export default function TlsPage() {
   const [sessionKey, setSessionKey] = useState('');
 
   useEffect(() => {
-    init('/pkg/wasm_crypto_bg.wasm').then(() => {
+    init({ module_or_path: '/pkg/wasm_crypto_bg.wasm' }).then(() => {
       setIsReady(true);
       setSim(new TlsSimulator());
     }).catch(console.error);

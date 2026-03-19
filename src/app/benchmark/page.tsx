@@ -13,7 +13,7 @@ export default function BenchmarkPage() {
   const [isJsRunning, setIsJsRunning] = useState(false);
 
   useEffect(() => {
-    init('/pkg/wasm_crypto_bg.wasm').then(() => setIsReady(true)).catch(console.error);
+    init({ module_or_path: '/pkg/wasm_crypto_bg.wasm' }).then(() => setIsReady(true)).catch(console.error);
   }, []);
 
   const runWasmBenchmark = async () => {

@@ -1,14 +1,43 @@
-# ClientCrypt – Professional Security Suite
+# ClientCrypt - Professional Security Suite
 
-Educational WASM-powered cryptographic analysis platform. All crypto runs client-side in Rust/WASM for privacy and performance.
+Educational WASM-powered cryptographic analysis platform. All crypto runs client-side in Rust/WASM for privacy and performance. Inspired by developer tools like CyberChef, IT-Tools, and DevToys, but specifically focused on providing a deep, interactive educational experience for cryptography utilizing WebAssembly.
 
 ### Features
-- Classical Ciphers (Caesar, Vigenère)
-- Block Ciphers (AES ECB & CBC)
+- Classical Ciphers (Caesar, Vigenere)
+- Block Ciphers (AES ECB and CBC)
 - Asymmetric Crypto (RSA, Diffie-Hellman)
 - Secure Hashing (SHA-256, HMAC)
 - Password Security Analysis (Entropy, Dictionary attacks, Benchmarks)
 - TLS 1.3 Handshake Simulation
+
+## Deployment
+
+ClientCrypt can be easily self-hosted.
+
+### Option 1: Docker Compose with Traefik (Recommended)
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/clientcrypt.git
+   cd clientcrypt
+   ```
+2. Start the container using Docker Compose:
+   ```bash
+   docker-compose up -d --build
+   ```
+This will build the static export using the multi-stage Dockerfile and serve it via NGINX. Traefik labels are included in `docker-compose.yml` for automatic SSL and reverse proxy configuration. If you are not using Traefik, uncomment the `ports` section in `docker-compose.yml`.
+
+### Option 2: Local Node.js Build
+
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Build the Next.js static export:
+   ```bash
+   npm run build
+   ```
+3. Serve the `out/` directory using any static file server (like `npx serve out`).
 
 ## Development
 
@@ -16,42 +45,8 @@ Educational WASM-powered cryptographic analysis platform. All crypto runs client
 # Frontend dev
 npm run dev
 
-# WASM build
+# WASM build (requires Rust and wasm-pack)
+# Ensure ~/.cargo/bin is in your PATH
 cd wasm-crypto
 wasm-pack build --target web --out-dir ../public/pkg
 ```
-
-## Getting Started
-
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

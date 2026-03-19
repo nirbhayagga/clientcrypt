@@ -29,6 +29,7 @@ export default function RootLayout({
               <Link href="/asymmetric" className="nav-link">Asymmetric Crypto</Link>
               <Link href="/passwords" className="nav-link">Password Security</Link>
               <Link href="/tls" className="nav-link">TLS Simulator</Link>
+              <Link href="/encoding" className="nav-link">Encoding Utilities</Link>
               <Link href="/benchmark" className="nav-link">Performance</Link>
             </nav>
             

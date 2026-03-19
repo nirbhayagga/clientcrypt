@@ -13,7 +13,7 @@ export default function Home() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
         <div className="glass-panel">
           <h2 className="card-title">Privacy-First Architecture</h2>
-          <p>Every algorithm you run—from AES encryption to RSA key generation—happens directly on your device using near-native Rust modules.</p>
+          <p>Every algorithm you run - from AES encryption to RSA key generation - happens directly on your device using near-native Rust modules.</p>
         </div>
         
         <div className="glass-panel">

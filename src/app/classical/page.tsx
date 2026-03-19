@@ -21,7 +21,7 @@ export default function ClassicalCiphers() {
   const [freqData, setFreqData] = useState<number[]>([]);
 
   useEffect(() => {
-    init('/pkg/wasm_crypto_bg.wasm').then(() => setIsReady(true)).catch(console.error);
+    init({ module_or_path: '/pkg/wasm_crypto_bg.wasm' }).then(() => setIsReady(true)).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -123,7 +123,7 @@ export default function ClassicalCiphers() {
       </section>
 
       <section className="glass-panel">
-        <h2 className="card-title">Vigenère Cipher</h2>
+        <h2 className="card-title">Vigenere Cipher</h2>
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 300px' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem' }}>Text</label>

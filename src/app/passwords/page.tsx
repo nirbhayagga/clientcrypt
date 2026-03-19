@@ -11,7 +11,7 @@ export default function PasswordsPage() {
   const [timeQuantum, setTimeQuantum] = useState(0);
 
   useEffect(() => {
-    init('/pkg/wasm_crypto_bg.wasm').then(() => setIsReady(true)).catch(console.error);
+    init({ module_or_path: '/pkg/wasm_crypto_bg.wasm' }).then(() => setIsReady(true)).catch(console.error);
   }, []);
 
   useEffect(() => {

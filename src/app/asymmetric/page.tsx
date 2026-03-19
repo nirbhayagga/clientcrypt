@@ -32,7 +32,7 @@ export default function AsymmetricPage() {
   const [bobShared, setBobShared] = useState('');
 
   useEffect(() => {
-    init('/pkg/wasm_crypto_bg.wasm').then(() => setIsReady(true)).catch(console.error);
+    init({ module_or_path: '/pkg/wasm_crypto_bg.wasm' }).then(() => setIsReady(true)).catch(console.error);
   }, []);
 
   const handleGenRsa = () => {

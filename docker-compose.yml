@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  clientcrypt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Use image below if pulling from a registry instead of building
+    # image: ghcr.io/yourusername/clientcrypt:latest
+    container_name: clientcrypt
+    restart: unless-stopped
+    # Uncomment to expose ports directly without a reverse proxy
+    # ports:
+    #   - "3000:80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.clientcrypt.rule=Host(`clientcrypt.example.com`)"
+      - "traefik.http.routers.clientcrypt.entrypoints=websecure"
+      - "traefik.http.routers.clientcrypt.tls.certresolver=myresolver"
+      - "traefik.http.services.clientcrypt.loadbalancer.server.port=80"
