@@ -77,7 +77,7 @@ export default function TlsPage() {
         Watch how randomness and Diffie-Hellman combine to generate a secure AES session key.
       </p>
 
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
          <button onClick={handleNextStep} disabled={step >= 4} style={{ padding: '0.8rem 2rem', background: step >= 4 ? 'var(--panel-bg)' : 'var(--accent-cyan)', color: step >= 4 ? '#888' : 'black', border: 'none', borderRadius: '4px', cursor: step >= 4 ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}>
             {step === 0 ? 'Start Handshake (Client Hello)' : 
              step === 1 ? 'Server Hello & Key Share' : 
@@ -89,7 +89,7 @@ export default function TlsPage() {
          </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+      <div className="responsive-grid">
         {/* Client Side */}
         <section className="glass-panel" style={{ border: step === 0 || step === 2 ? '1px solid var(--accent-cyan)' : '1px solid var(--panel-border)' }}>
            <h2 className="card-title">Client</h2>
@@ -132,7 +132,7 @@ export default function TlsPage() {
       {step >= 4 && (
         <section className="glass-panel animate-fade-in" style={{ borderColor: 'var(--accent-cyan)', background: 'rgba(0, 240, 255, 0.05)' }}>
           <h2 style={{ color: 'var(--accent-cyan)', marginBottom: '1rem' }}>Secure Channel Established</h2>
-          <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'center' }}>
             <div style={{ flex: 1, padding: '1rem', background: 'var(--background)', borderRadius: '8px', fontFamily: 'var(--font-mono)' }}>
                <strong style={{ display: 'block', marginBottom: '0.5rem' }}>Derived AES Session Key (Hex):</strong>
                <span style={{ color: '#00ff00', fontSize: '1.2rem' }}>{sessionKey}</span>

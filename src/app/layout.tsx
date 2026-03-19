@@ -15,9 +15,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div style={{ display: 'flex', minHeight: '100vh' }}>
-          <aside className="glass-panel" style={{ width: '280px', margin: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'sticky', top: '1rem', height: 'calc(100vh - 2rem)' }}>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '2rem', padding: '0 1rem' }}>
+        <div className="app-container">
+          <aside className="glass-panel sidebar">
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.5rem', padding: '0 0.5rem', textAlign: 'center' }}>
               <span className="text-gradient">ClientCrypt</span>
             </div>
             
@@ -33,12 +33,12 @@ export default function RootLayout({
               <Link href="/benchmark" className="nav-link">Performance</Link>
             </nav>
             
-            <div style={{ padding: '1rem', fontSize: '0.8rem', opacity: 0.7, textAlign: 'center' }}>
+            <div style={{ padding: '1rem', fontSize: '0.8rem', opacity: 0.7, textAlign: 'center', marginTop: 'auto' }}>
               Powered by Rust & WASM
             </div>
           </aside>
           
-          <main className="animate-fade-in" style={{ flex: 1, padding: '1rem 2rem 1rem 1rem', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <main className="main-content animate-fade-in">
             {children}
           </main>
         </div>

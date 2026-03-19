@@ -78,7 +78,7 @@ export default function BenchmarkPage() {
             style={{ width: '100%', maxWidth: '400px', marginBottom: '2rem' }}
          />
 
-         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) minmax(250px, 1fr)', gap: '2rem' }}>
+         <div className="responsive-grid">
            
            {/* WASM Panel */}
            <div style={{ padding: '2rem', background: 'rgba(0, 240, 255, 0.05)', borderRadius: '8px', border: '1px solid rgba(0, 240, 255, 0.2)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>

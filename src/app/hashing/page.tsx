@@ -67,20 +67,19 @@ export default function HashingPage() {
 
       <section className="glass-panel">
         <h2 className="card-title">Live Hashing Input</h2>
-        <div style={{ marginBottom: '1.5rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Data</label>
-          <input 
-            type="text" value={inputText} onChange={(e) => setInputText(e.target.value)}
-            style={{ width: '100%', padding: '0.8rem', background: 'var(--panel-bg)', color: 'white', border: '1px solid var(--panel-border)', borderRadius: '4px', fontSize: '1.1rem' }}
-          />
-        </div>
-        
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <div style={{ flex: 1 }}>
+        <div className="responsive-grid" style={{ marginBottom: '1.5rem' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Data</label>
+            <input 
+              type="text" value={inputText} onChange={(e) => setInputText(e.target.value)}
+              style={{ width: '100%', padding: '0.8rem', background: 'var(--panel-bg)', color: 'white', border: '1px solid var(--panel-border)', borderRadius: '4px', fontSize: '1.1rem' }}
+            />
+          </div>
+          <div>
             <label style={{ display: 'block', marginBottom: '0.5rem' }}>HMAC Key</label>
             <input 
               type="text" value={hmacKey} onChange={(e) => setHmacKey(e.target.value)}
-              style={{ width: '100%', padding: '0.6rem', background: 'var(--panel-bg)', color: 'white', border: '1px solid var(--panel-border)', borderRadius: '4px', fontFamily: 'var(--font-mono)' }}
+              style={{ width: '100%', padding: '0.8rem', background: 'var(--panel-bg)', color: 'white', border: '1px solid var(--panel-border)', borderRadius: '4px', fontFamily: 'var(--font-mono)' }}
             />
           </div>
         </div>

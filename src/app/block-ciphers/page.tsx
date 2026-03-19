@@ -42,7 +42,7 @@ export default function BlockCiphersPage() {
       <section className="glass-panel">
         <h2 className="card-title">AES-128 Operations</h2>
         
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) minmax(200px, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+        <div className="responsive-grid" style={{ marginBottom: '1.5rem' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '0.5rem' }}>Mode</label>
             <select 
@@ -65,8 +65,8 @@ export default function BlockCiphersPage() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
-          <div style={{ flex: '1 1 100%' }}>
+        <div className="responsive-grid" style={{ marginBottom: '1.5rem' }}>
+          <div>
             <label style={{ display: 'block', marginBottom: '0.5rem' }}>Key (32 hex chars / 16 bytes)</label>
             <input 
               type="text" value={hexKey} onChange={(e) => setHexKey(e.target.value)}
@@ -74,7 +74,7 @@ export default function BlockCiphersPage() {
             />
           </div>
           {aesMode === 'CBC' && (
-            <div className="animate-fade-in" style={{ flex: '1 1 100%' }}>
+            <div className="animate-fade-in">
               <label style={{ display: 'block', marginBottom: '0.5rem' }}>Initialization Vector (32 hex chars / 16 bytes)</label>
               <input 
                 type="text" value={hexIv} onChange={(e) => setHexIv(e.target.value)}
@@ -109,7 +109,7 @@ export default function BlockCiphersPage() {
            In Electronic Codebook (ECB) mode, identical plaintext blocks are encrypted to identical ciphertext blocks.
            This leads to pattern leakage. Cipher Block Chaining (CBC) prevents this by XOR-ing each block with the previous ciphertext block.
          </p>
-         <div style={{ display: 'flex', gap: '2rem', justifyContent: 'space-between', alignItems: 'center' }}>
+         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', justifyContent: 'space-between', alignItems: 'center' }}>
            <div style={{ flex: 1, textAlign: 'center' }}>
              <div style={{ width: '100%', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ccc', color: '#111', fontWeight: 'bold', fontSize: '2rem', borderRadius: '8px' }}>
                [IMAGE]

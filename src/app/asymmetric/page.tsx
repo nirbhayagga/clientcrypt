@@ -115,7 +115,7 @@ export default function AsymmetricPage() {
           <button onClick={handleGenRsa} style={{ marginLeft: '1rem', padding: '0.4rem 1rem', background: 'var(--accent-cyan)', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Generate Keys</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2rem' }}>
+        <div className="responsive-grid" style={{ marginBottom: '2rem' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--accent-teal)' }}>Public Key (PEM)</label>
             <textarea readOnly value={pubKey} style={{ width: '100%', height: '150px', background: 'var(--panel-bg)', color: 'white', border: '1px solid var(--panel-border)', borderRadius: '4px', fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }} />
@@ -126,7 +126,7 @@ export default function AsymmetricPage() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div className="responsive-grid">
           <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--panel-border)' }}>
              <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Encrypt (uses Public Key)</h3>
              <input type="text" value={ptInput} onChange={(e) => setPtInput(e.target.value)} style={{ width: '100%', padding: '0.6rem', marginBottom: '1rem', background: 'var(--panel-bg)', color: 'white', border: '1px solid var(--panel-border)' }} />
@@ -153,7 +153,7 @@ export default function AsymmetricPage() {
            </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+        <div className="responsive-grid">
           {/* Alice */}
           <div style={{ background: 'rgba(0, 240, 255, 0.05)', padding: '1.5rem', borderRadius: '8px', border: '1px solid rgba(0, 240, 255, 0.2)' }}>
             <h3 style={{ color: 'var(--accent-cyan)', marginBottom: '1rem' }}>Alice</h3>

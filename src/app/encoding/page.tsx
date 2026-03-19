@@ -57,7 +57,7 @@ export default function EncodingPage() {
             <textarea value={input} onChange={(e) => setInput(e.target.value)} rows={4} style={{ width: '100%', padding: '0.6rem', background: 'var(--panel-bg)', color: 'white', border: '1px solid var(--panel-border)', borderRadius: '4px', fontFamily: 'var(--font-mono)' }} />
           </div>
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) minmax(250px, 1fr)', gap: '1rem' }}>
+          <div className="responsive-grid">
              <div style={{ background: 'rgba(0, 240, 255, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(0, 240, 255, 0.2)' }}>
                 <strong style={{ color: 'var(--accent-cyan)', display: 'block', marginBottom: '0.5rem' }}>Result (Encoded):</strong>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', wordBreak: 'break-all' }}>{getEncoded()}</div>

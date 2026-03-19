@@ -72,36 +72,36 @@ export default function ClassicalCiphers() {
 
       <section className="glass-panel">
         <h2 className="card-title">Caesar Cipher</h2>
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 300px' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Text</label>
+        <div className="responsive-grid" style={{ marginBottom: '1.5rem' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Text Input</label>
             <textarea
-              style={{ width: '100%', height: '120px', background: 'var(--panel-bg)', color: 'white', border: '1px solid var(--panel-border)', borderRadius: '8px', padding: '0.8rem', fontFamily: 'var(--font-mono)' }}
+              style={{ width: '100%', minHeight: '140px', resize: 'vertical', background: 'var(--panel-bg)', color: 'white', border: '1px solid var(--panel-border)', borderRadius: '8px', padding: '1rem', fontFamily: 'var(--font-mono)' }}
               value={caesarInput}
               onChange={(e) => setCaesarInput(e.target.value.toUpperCase())}
             />
           </div>
-          <div style={{ width: '250px' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Shift: {caesarShift}</label>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Shift Amount: <span style={{ color: 'var(--accent-cyan)' }}>{caesarShift}</span></label>
             <input 
               type="range" min="1" max="25" 
               value={caesarShift} onChange={(e) => setCaesarShift(parseInt(e.target.value))}
-              style={{ width: '100%', marginBottom: '1rem' }}
+              style={{ width: '100%', marginBottom: '1.5rem' }}
             />
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
               <button 
                 onClick={() => setCaesarAction('encrypt')}
-                style={{ flex: 1, padding: '0.6rem', background: caesarAction==='encrypt' ? 'var(--accent-cyan)' : 'var(--panel-bg)', color: caesarAction==='encrypt' ? 'black' : 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 500 }}
+                style={{ flex: 1, padding: '0.8rem', background: caesarAction==='encrypt' ? 'var(--accent-cyan)' : 'var(--panel-bg)', color: caesarAction==='encrypt' ? '#000' : 'white', border: '1px solid var(--panel-border)', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s' }}
               >Encrypt</button>
               <button 
                 onClick={() => setCaesarAction('decrypt')}
-                style={{ flex: 1, padding: '0.6rem', background: caesarAction==='decrypt' ? 'var(--accent-cyan)' : 'var(--panel-bg)', color: caesarAction==='decrypt' ? 'black' : 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 500 }}
+                style={{ flex: 1, padding: '0.8rem', background: caesarAction==='decrypt' ? 'var(--accent-cyan)' : 'var(--panel-bg)', color: caesarAction==='decrypt' ? '#000' : 'white', border: '1px solid var(--panel-border)', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s' }}
               >Decrypt</button>
             </div>
             <button 
               onClick={handleBruteForce}
-              style={{ width: '100%', padding: '0.6rem', marginTop: '0.5rem', background: 'var(--panel-bg)', border: '1px solid var(--accent-teal)', color: 'var(--accent-teal)', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
-            >Brute-Force Attack</button>
+              style={{ width: '100%', padding: '0.8rem', background: 'rgba(45, 212, 191, 0.1)', border: '1px solid var(--accent-teal)', color: 'var(--accent-teal)', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s' }}
+            >Execute Brute-Force Attack</button>
           </div>
         </div>
         
@@ -124,30 +124,30 @@ export default function ClassicalCiphers() {
 
       <section className="glass-panel">
         <h2 className="card-title">Vigenere Cipher</h2>
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 300px' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Text</label>
+        <div className="responsive-grid" style={{ marginBottom: '1.5rem' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Text Input</label>
             <textarea
-              style={{ width: '100%', height: '120px', background: 'var(--panel-bg)', color: 'white', border: '1px solid var(--panel-border)', borderRadius: '8px', padding: '0.8rem', fontFamily: 'var(--font-mono)' }}
+              style={{ width: '100%', minHeight: '140px', resize: 'vertical', background: 'var(--panel-bg)', color: 'white', border: '1px solid var(--panel-border)', borderRadius: '8px', padding: '1rem', fontFamily: 'var(--font-mono)' }}
               value={vigenereInput}
               onChange={(e) => setVigenereInput(e.target.value.toUpperCase())}
             />
           </div>
-          <div style={{ width: '250px' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>Key String</label>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Key String</label>
             <input 
               type="text" 
               value={vigenereKey} onChange={(e) => setVigenereKey(e.target.value.toUpperCase())}
-              style={{ width: '100%', marginBottom: '1rem', background: 'var(--panel-bg)', color: 'white', border: '1px solid var(--panel-border)', borderRadius: '4px', padding: '0.6rem', fontFamily: 'var(--font-mono)' }}
+              style={{ width: '100%', marginBottom: '1.5rem', background: 'var(--panel-bg)', color: 'white', border: '1px solid var(--panel-border)', borderRadius: '6px', padding: '0.8rem', fontFamily: 'var(--font-mono)' }}
             />
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button 
                 onClick={() => setVigenereAction('encrypt')}
-                style={{ flex: 1, padding: '0.6rem', background: vigenereAction==='encrypt' ? 'var(--accent-teal)' : 'var(--panel-bg)', color: vigenereAction==='encrypt' ? 'black' : 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 500 }}
+                style={{ flex: 1, padding: '0.8rem', background: vigenereAction==='encrypt' ? 'var(--accent-teal)' : 'var(--panel-bg)', color: vigenereAction==='encrypt' ? '#000' : 'white', border: '1px solid var(--panel-border)', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s' }}
               >Encrypt</button>
               <button 
                 onClick={() => setVigenereAction('decrypt')}
-                style={{ flex: 1, padding: '0.6rem', background: vigenereAction==='decrypt' ? 'var(--accent-teal)' : 'var(--panel-bg)', color: vigenereAction==='decrypt' ? 'black' : 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 500 }}
+                style={{ flex: 1, padding: '0.8rem', background: vigenereAction==='decrypt' ? 'var(--accent-teal)' : 'var(--panel-bg)', color: vigenereAction==='decrypt' ? '#000' : 'white', border: '1px solid var(--panel-border)', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s' }}
               >Decrypt</button>
             </div>
           </div>
