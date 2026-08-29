@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://clientcrypt.nirbhay.dev/</loc></url>
+  <url><loc>https://clientcrypt.nirbhay.dev/classical/</loc></url>
+  <url><loc>https://clientcrypt.nirbhay.dev/block-ciphers/</loc></url>
+  <url><loc>https://clientcrypt.nirbhay.dev/hashing/</loc></url>
+  <url><loc>https://clientcrypt.nirbhay.dev/asymmetric/</loc></url>
+  <url><loc>https://clientcrypt.nirbhay.dev/passwords/</loc></url>
+  <url><loc>https://clientcrypt.nirbhay.dev/tls/</loc></url>
+  <url><loc>https://clientcrypt.nirbhay.dev/encoding/</loc></url>
+  <url><loc>https://clientcrypt.nirbhay.dev/benchmark/</loc></url>
+</urlset>

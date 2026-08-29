@@ -10,7 +10,12 @@
     "preview": "serve out",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "docker:build": "docker build -t clientcrypt ."
+    "docker:build": "docker build -t clientcrypt .",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "lighthouse": "lhci autorun",
+    "build:cloudflare": "sh scripts/cf-build.sh",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "next": "16.2.0",
@@ -18,6 +23,8 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@lhci/cli": "^0.15.1",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -26,6 +33,9 @@
     "eslint-config-next": "16.2.0",
     "serve": "^14.2.6",
     "typescript": "^5",
-    "wasm-pack": "^0.15.0"
-  }
+    "wasm-pack": "^0.15.0",
+    "wrangler": "^4.127.1"
+  },
+  "homepage": "https://clientcrypt.nirbhay.dev",
+  "license": "MIT"
 }

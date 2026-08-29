@@ -1,0 +1,25 @@
+// Cloudflare Workers (static assets) configuration, used by Workers Builds and
+// by `npm run deploy`. Assets-only: no Worker script, Cloudflare serves out/
+// directly and honours public/_headers.
+//
+// Workers Builds settings: build command `npm run build:cloudflare` (installs a
+// Rust toolchain because the build image has none), deploy command
+// `npx wrangler deploy`, build variable NODE_VERSION = 22.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "clientcrypt",
+  "compatibility_date": "2026-08-29",
+  // Only the custom domain is exposed.
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./out",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  },
+  // Requires the nirbhay.dev zone on this Cloudflare account; remove this block
+  // to add the domain from the Worker's Domains & Routes tab instead.
+  "routes": [
+    { "pattern": "clientcrypt.nirbhay.dev", "custom_domain": true }
+  ]
+}

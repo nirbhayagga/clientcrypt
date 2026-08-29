@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#0c0e12"/>
+  <rect x="1" y="1" width="62" height="62" rx="11" fill="none" stroke="#262b33" stroke-width="2"/>
+  <!-- key: bow (ring) and blade -->
+  <circle cx="24" cy="26" r="10" fill="none" stroke="#d9a441" stroke-width="5"/>
+  <path d="M31 33 L48 50 M42 44 L47 39 M36 38 L41 33" fill="none" stroke="#d9a441" stroke-width="5" stroke-linecap="round"/>
+</svg>

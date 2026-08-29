@@ -1,0 +1,16 @@
+# Cloudflare Workers static assets honour this file. Mirrors docker/nginx.conf.
+# CSP: Next.js emits inline hydration scripts ('unsafe-inline'), WebAssembly
+# needs 'wasm-unsafe-eval', and Have I Been Pwned is the only cross-origin call.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.pwnedpasswords.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'
+  Cache-Control: no-cache
+
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/pkg/*
+  Cache-Control: no-cache
