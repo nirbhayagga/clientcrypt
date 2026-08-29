@@ -1,0 +1,18 @@
+# Self-hosting. `docker compose up -d` pulls the published image; add `--build`
+# to build from source instead (needs network access for crates.io/npm).
+services:
+  clientcrypt:
+    image: ghcr.io/nirbhayagga/clientcrypt:latest
+    build: .
+    container_name: clientcrypt
+    restart: unless-stopped
+    # Direct port mapping; remove if a reverse proxy (Traefik/Caddy) fronts it.
+    ports:
+      - "8080:80"
+    # Traefik example (uncomment and adjust host/resolver):
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.clientcrypt.rule=Host(`clientcrypt.nirbhay.dev`)"
+    #   - "traefik.http.routers.clientcrypt.entrypoints=websecure"
+    #   - "traefik.http.routers.clientcrypt.tls.certresolver=myresolver"
+    #   - "traefik.http.services.clientcrypt.loadbalancer.server.port=80"

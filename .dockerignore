@@ -1,0 +1,17 @@
+node_modules
+out
+.next
+.git
+.github
+tests
+playwright-report
+test-results
+.lighthouseci
+public/pkg
+wasm-crypto/target
+*.md
+!README.md
+*.log
+*.txt
+.env*
+.wrangler
