@@ -1,0 +1,25 @@
+{
+  "ci": {
+    "collect": {
+      "startServerCommand": "npx serve out -l 4174 --no-clipboard",
+      "startServerReadyPattern": "Accepting connections",
+      "url": [
+        "http://localhost:4174/",
+        "http://localhost:4174/classical/",
+        "http://localhost:4174/block-ciphers/",
+        "http://localhost:4174/tls/"
+      ],
+      "numberOfRuns": 1,
+      "settings": { "preset": "desktop", "chromeFlags": "--no-sandbox --headless=new" }
+    },
+    "assert": {
+      "assertions": {
+        "categories:performance": ["warn", { "minScore": 0.85 }],
+        "categories:accessibility": ["error", { "minScore": 0.9 }],
+        "categories:best-practices": ["warn", { "minScore": 0.9 }],
+        "categories:seo": ["warn", { "minScore": 0.9 }]
+      }
+    },
+    "upload": { "target": "filesystem", "outputDir": ".lighthouseci/reports" }
+  }
+}

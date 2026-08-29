@@ -156,7 +156,7 @@ export function Stat({ label, value, sub, tone }: { label: string; value: ReactN
 export function Status({ state, error }: { state: 'loading' | 'ready' | 'error'; error?: string }) {
   if (state === 'ready') return null;
   return (
-    <p className={`status ${state === 'error' ? 'error' : ''}`} role="status">
+    <p className={`status ${state === 'error' ? 'error' : 'loading'}`} role="status">
       {state === 'loading' ? 'Loading WebAssembly module…' : `WebAssembly module failed to load${error ? `: ${error}` : ''}.`}
     </p>
   );

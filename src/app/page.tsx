@@ -53,6 +53,7 @@ export default function Home() {
         <Panel title="Contents">
           <div className="table-wrap">
             <table className="toc">
+              <thead className="sr-only"><tr><th>Section</th><th>Title and topics</th><th>Standards</th></tr></thead>
               <tbody>
                 {CONTENTS.map((c) => (
                   <tr key={c.num}>
@@ -80,6 +81,7 @@ export default function Home() {
           </Panel>
           <Panel title="Implementation">
             <table className="table">
+              <thead><tr><th>Crate</th><th>Role</th></tr></thead>
               <tbody>
                 {CRATES.map(([name, what]) => (
                   <tr key={name}><td className="mono">{name}</td><td className="muted small">{what}</td></tr>

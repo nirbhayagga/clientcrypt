@@ -156,6 +156,7 @@ code {
   flex: 1;
   min-width: 0;
   padding: 2.5rem 3rem 5rem;
+  position: relative;
 }
 .main > * { max-width: var(--content-w); }
 
@@ -381,7 +382,9 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   font-family: var(--font-mono), monospace;
   font-size: 0.75rem;
   color: var(--fg-faint);
+  margin: 0;
 }
+.status.loading { position: absolute; top: 0.75rem; right: 3rem; }
 .status.error { color: var(--danger); }
 
 /* Tables ------------------------------------------------------------------ */
@@ -414,8 +417,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .hexdiff .d { color: var(--danger); background: var(--danger-dim); }
 
 .steps { display: flex; flex-direction: column; gap: 0.6rem; counter-reset: step; }
-.step { display: grid; grid-template-columns: 2rem 1fr; gap: 0.6rem; align-items: start; opacity: 0.45; }
-.step.done, .step.active { opacity: 1; }
+.step { display: grid; grid-template-columns: 2rem 1fr; gap: 0.6rem; align-items: start; }
+.step .step-title, .step .step-body { color: var(--fg-faint); }
+.step.done .step-title, .step.active .step-title { color: var(--fg); }
+.step.done .step-body, .step.active .step-body { color: var(--fg-muted); }
 .step-num { font-family: var(--font-mono), monospace; font-size: 0.75rem; color: var(--fg-faint); border: 1px solid var(--border-strong); border-radius: 3px; text-align: center; padding: 0.15rem 0; }
 .step.active .step-num { color: var(--accent); border-color: var(--accent-border); }
 .step.done .step-num { color: var(--ok); border-color: var(--ok); }

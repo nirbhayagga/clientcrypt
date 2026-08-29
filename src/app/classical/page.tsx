@@ -119,7 +119,7 @@ export default function ClassicalCiphers() {
           distribution and English; the lowest value is almost always the plaintext once the text exceeds a few dozen letters.
           Applied to the {mode === 'encrypt' ? 'ciphertext above' : 'input above'}.
         </p>
-        <div className="table-wrap">
+        <div className="table-wrap" style={{ minHeight: '31rem' }}>
           <table className="table">
             <thead><tr><th>Shift</th><th>χ²</th><th>Candidate</th></tr></thead>
             <tbody>
@@ -191,7 +191,7 @@ export default function ClassicalCiphers() {
           {iocs.map((v, i) => {
             const p = i + 1;
             return (
-              <button key={p} type="button" className="bar" onClick={() => setPeriod(p)} aria-pressed={p === chosen} aria-label={`period ${p}, IoC ${v.toFixed(4)}`}
+              <button key={p} type="button" className="bar" onClick={() => setPeriod(p)} aria-pressed={p === chosen} title={`period ${p}: IoC ${v.toFixed(4)}`}
                 style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}>
                 <div className="bar-value">{v.toFixed(3)}</div>
                 <div className="bar-fill" style={{ height: `${(v / 0.08) * 100}%`, opacity: p === chosen ? 1 : 0.4 }} />
