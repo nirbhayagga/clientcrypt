@@ -23,15 +23,17 @@ aes = "0.8"
 
 # Hashing / MACs
 sha1 = "0.10"
-sha2 = "0.10"
+sha2 = { version = "0.10", features = ["oid"] }
 hmac = "0.12"
 
 # Public key
-rsa = { version = "0.9", features = ["pem"] }
+rsa = { version = "0.9", features = ["pem", "sha2"] }
 num-bigint = { version = "0.4", features = ["rand"] }
 aes-gcm = "0.10"
 md-5 = "0.10"
 sha3 = "0.10"
+num-traits = "0.2"
+x25519-dalek = { version = "2", features = ["static_secrets"] }
 
 [profile.release]
 opt-level = "s"
