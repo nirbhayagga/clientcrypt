@@ -1,0 +1,48 @@
+# Dependabot: version updates disabled (open-pull-requests-limit: 0).
+#
+# Why: this repo is push-mirrored to GitHub from Forgejo. A push mirror is a
+# `git push --mirror`, which prunes any ref not present upstream. dependabot/*
+# branches only ever exist on GitHub, so every sync deleted them — and deleting
+# a PR's head branch makes GitHub auto-close it. The PRs were reopened on the
+# next Dependabot run and killed again on the next sync. The sync is not only
+# push-triggered; the mirror's own interval does it too, so there is no safe
+# window.
+#
+# What still works:
+# - Dependabot ALERTS are a repo setting, not this file, and are not branches.
+#   The mirror cannot touch them. Leave them on — that is the real signal.
+# - Dependabot SECURITY UPDATES are also a repo setting, and their PRs are NOT
+#   bounded by open-pull-requests-limit. They are branches, so they get pruned
+#   too. Turn them off under Settings → Code security if you want zero
+#   branches; the alert itself names the fixed version range.
+#
+# What replaces it: apply updates by hand in batches. For peer-locked
+# toolchains (next / eslint-config-next / react, wasm-bindgen / wasm-pack,
+# playwright) this is better anyway — packages that must move together in one
+# commit cannot be split into per-package PRs that each pass CI.
+#
+# Proper fix, later: run Renovate as a scheduled Forgejo Action. It opens PRs on
+# Forgejo (the source of truth), so the mirror carries them outward in the
+# direction that already works.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+  - package-ecosystem: cargo
+    directory: /wasm-crypto
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0

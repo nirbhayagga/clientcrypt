@@ -1,0 +1,170 @@
+# Single pipeline: wasm + site build, cargo tests, lint/type-check → Playwright
+# (unit + browser end-to-end + phone viewport) → Lighthouse; then on pushes to
+# main / version tags publish the container image to GHCR and, optionally,
+# deploy the static export to Cloudflare Workers or GitHub Pages.
+#
+# Marketplace actions are kept to the minimum (checkout, setup-node, cache,
+# artifact upload, Pages deploy); Rust, Docker, wrangler and Lighthouse run as
+# plain shell steps. The Ubuntu runner ships a stable Rust toolchain.
+#
+# This repo is push-mirrored from Forgejo. The deploy jobs are gated on
+# github.server_url so a Forgejo Actions runner picking up this file only runs
+# the test job and never tries to log in to GHCR with a Forgejo token.
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build · Test · Lighthouse
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Rust wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            wasm-crypto/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('wasm-crypto/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - run: npm ci
+
+      - name: Crate tests (known-answer vectors)
+        run: cargo test --manifest-path wasm-crypto/Cargo.toml
+
+      - name: Build wasm and static site
+        run: npm run build
+
+      - name: Lint and type-check
+        run: npm run lint && npm run typecheck
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright — unit, end-to-end, mobile
+        run: npx playwright test
+
+      - name: Lighthouse
+        run: npx lhci autorun
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            playwright-report
+            .lighthouseci
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload site
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: out
+          retention-days: 7
+
+      - name: Upload site for Pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  cloudflare:
+    name: Deploy · Cloudflare Workers
+    needs: test
+    # Enable by setting repository variable DEPLOY_CLOUDFLARE=true and the
+    # secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID. Alternative that
+    # needs no secrets: Workers Builds with build command
+    # `npm run build:cloudflare` (see wrangler.jsonc).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.server_url == 'https://github.com' && vars.DEPLOY_CLOUDFLARE == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: out
+      - run: npm ci --ignore-scripts
+      - run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+  pages:
+    name: Deploy · GitHub Pages
+    needs: test
+    # Enable by setting repository variable DEPLOY_PAGES=true and
+    # Settings → Pages → Source: "GitHub Actions".
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.server_url == 'https://github.com' && vars.DEPLOY_PAGES == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  image:
+    name: Deploy · container image
+    needs: test
+    if: github.event_name == 'push' && github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          TAGS=(-t "$IMAGE:sha-${GITHUB_SHA::7}")
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAGS+=(-t "$IMAGE:${GITHUB_REF_NAME#v}")
+          else
+            TAGS+=(-t "$IMAGE:main" -t "$IMAGE:latest")
+          fi
+          docker build \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            "${TAGS[@]}" .
+          docker push --all-tags "$IMAGE"
