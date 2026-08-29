@@ -1,100 +1,145 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import init, { PasswordSecurity } from '../../../public/pkg/wasm_crypto';
+import { useState } from 'react';
+import { useWasm, wasm, attempt } from '@/lib/wasm';
+import { formatDuration, formatMs, randomHex, hexToBytes } from '@/lib/bytes';
+import { Page, Panel, Note, Field, TextInput, Select, Output, Stat, Status, ErrorText, Button, Callout } from '@/components/ui';
+
+const RATES: { label: string; rate: number; note: string }[] = [
+  { label: 'Online, rate-limited', rate: 100, note: '100 guesses/s — a login form with throttling' },
+  { label: 'Online, unthrottled', rate: 1e4, note: '10⁴ guesses/s — API without lockout' },
+  { label: 'Offline, Argon2id / bcrypt', rate: 1e5, note: '10⁵ guesses/s — leaked database with a slow hash' },
+  { label: 'Offline, SHA-256 on GPUs', rate: 1e11, note: '10¹¹ guesses/s — leaked database with a fast hash' },
+];
+
+const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
 
 export default function PasswordsPage() {
-  const [isReady, setIsReady] = useState(false);
-  const [password, setPassword] = useState('MyP@ssw0rd!');
-  const [entropy, setEntropy] = useState(0);
-  const [timeClassical, setTimeClassical] = useState(0);
-  const [timeQuantum, setTimeQuantum] = useState(0);
+  const state = useWasm();
+  const ready = state === 'ready';
+  const P = wasm.PasswordSecurity;
 
-  useEffect(() => {
-    init({ module_or_path: '/pkg/wasm_crypto_bg.wasm' }).then(() => setIsReady(true)).catch(console.error);
-  }, []);
+  const [pw, setPw] = useState('Tr0ub4dor&3');
+  const entropy = ready ? P.calculate_entropy(pw) : 0;
+  const pool = ready ? P.alphabet_size(pw) : undefined;
+  const rank = ready ? P.common_password_rank(pw) : 0;
+  const length = Array.from(pw).length;
+  const tone: 'danger' | 'warn' | 'ok' | 'accent' = rank ? 'danger' : entropy < 40 ? 'danger' : entropy < 60 ? 'warn' : entropy < 80 ? 'ok' : 'accent';
 
-  useEffect(() => {
-    if (!isReady) return;
-    try {
-      const e = PasswordSecurity.calculate_entropy(password);
-      setEntropy(e);
-      setTimeClassical(PasswordSecurity.time_to_crack_classical(e));
-      setTimeQuantum(PasswordSecurity.time_to_crack_quantum(e));
-    } catch (err) {
-      console.error(err);
-    }
-  }, [password, isReady]);
+  // KDF cost
+  const [iterations, setIterations] = useState(600_000);
+  const [mKib, setMKib] = useState(19 * 1024);
+  const [tCost, setTCost] = useState(2);
+  const [salt] = useState(() => randomHex(16));
+  const [kdf, setKdf] = useState<{ pbkdf2: string; pbkdf2Ms: number; argon: string; argonMs: number; shaUs: number } | null>(null);
+  const [kdfBusy, setKdfBusy] = useState(false);
+  const [kdfError, setKdfError] = useState<string | null>(null);
 
-  const formatTime = (seconds: number) => {
-    if (seconds < 1) return "< 1 second";
-    if (seconds < 60) return `${Math.round(seconds)} seconds`;
-    if (seconds < 3600) return `${Math.round(seconds / 60)} minutes`;
-    if (seconds < 86400) return `${Math.round(seconds / 3600)} hours`;
-    if (seconds < 31536000) return `${Math.round(seconds / 86400)} days`;
-    const years = seconds / 31536000;
-    if (years > 1000000) return "> 1 Million Years";
-    return `${Math.round(years)} years`;
-  };
-
-  const getEntropyColor = () => {
-    if (entropy < 40) return '#ff4444'; // Red
-    if (entropy < 60) return '#ffbb33'; // Orange
-    if (entropy < 80) return '#00C851'; // Green
-    return 'var(--accent-cyan)'; // Strong
+  const runKdf = () => {
+    setKdfBusy(true); setKdfError(null);
+    setTimeout(() => {
+      const r = attempt(() => {
+        const s = hexToBytes(salt);
+        const t0 = performance.now();
+        P.benchmark_sha256(10_000);
+        const shaUs = ((performance.now() - t0) / 10_000) * 1000;
+        const t1 = performance.now();
+        const pbkdf2 = P.pbkdf2_sha256(pw, s, iterations, 32);
+        const pbkdf2Ms = performance.now() - t1;
+        const t2 = performance.now();
+        const argon = P.argon2id(pw, s, mKib, tCost, 1);
+        const argonMs = performance.now() - t2;
+        return { pbkdf2, pbkdf2Ms, argon, argonMs, shaUs };
+      });
+      if (r.ok) setKdf(r.value); else setKdfError(r.error);
+      setKdfBusy(false);
+    }, 30);
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>Password Security</h1>
+    <Page kicker="§5 · Password security" title="Password strength and key derivation"
+      lede="A password's strength is the number of guesses an attacker needs, not its appearance. Two things decide that number: how the password was chosen, and how expensive the defender made each guess.">
+      <Status state={state} />
 
-      <section className="glass-panel">
-        <h2 className="card-title">Live Entropy Analysis</h2>
-        <div style={{ marginBottom: '2rem' }}>
-          <input 
-            type="text" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Type a password to test..."
-            style={{ width: '100%', padding: '1rem', fontSize: '1.5rem', background: 'var(--panel-bg)', color: 'white', border: `2px solid ${getEntropyColor()}`, borderRadius: '8px', transition: 'border-color 0.3s' }}
-          />
+      <Panel title="Guessing-resistance model">
+        <Field label="Password" hint={`${length} characters`}>
+          {(id) => <TextInput id={id} mono value={pw} onChange={(e) => setPw(e.target.value)} disabled={!ready} style={{ fontSize: '1.1rem', borderColor: `var(--${tone})` }} />}
+        </Field>
+        <div className="grid" style={{ marginTop: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
+          <Stat label="Alphabet" value={pool ?? 0} sub="symbols in the classes used" />
+          <Stat label="Entropy bound" value={`${entropy.toFixed(1)} bits`} sub={`${length} × log₂(${pool ?? 0})`} tone={tone} />
+          <Stat label="Key space" value={entropy ? `2^${entropy.toFixed(0)}` : '—'} sub={entropy ? `≈ 10^${(entropy * Math.log10(2)).toFixed(0)} guesses` : ''} />
+          <Stat label="Top-1000 list" value={rank ? `#${rank}` : 'not listed'} tone={rank ? 'danger' : 'ok'} sub={rank ? 'guessed instantly' : 'xato-net corpus'} />
         </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '8px', border: '1px solid var(--panel-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ fontSize: '0.9rem', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Entropy Bits</div>
-            <div style={{ fontSize: '3rem', fontWeight: 700, color: getEntropyColor() }}>
-              {Math.round(entropy)}
-            </div>
-          </div>
-          
-          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '8px', border: '1px solid var(--panel-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ fontSize: '0.9rem', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Classical Crack Time</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 600, color: 'white', textAlign: 'center' }}>
-              {formatTime(timeClassical)}
-            </div>
-            <div style={{ fontSize: '0.8rem', opacity: 0.5, marginTop: '0.5rem' }}>(@ 10 Billion guesses/sec)</div>
-          </div>
-
-          <div style={{ background: 'rgba(0, 240, 255, 0.05)', padding: '1.5rem', borderRadius: '8px', border: '1px solid rgba(0,240,255,0.2)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ fontSize: '0.9rem', color: 'var(--accent-cyan)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem' }}>Quantum Crack Time</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--accent-cyan)', textAlign: 'center' }}>
-              {formatTime(timeQuantum)}
-            </div>
-            <div style={{ fontSize: '0.8rem', opacity: 0.7, color: 'var(--accent-cyan)', marginTop: '0.5rem' }}>(Grover's Algorithm Speedup)</div>
-          </div>
+        {rank > 0 && <div style={{ marginTop: '1rem' }}><Callout tone="danger">This exact string is the {ordinal(rank)} most common password in a 10-million-password leak corpus. Its effective entropy is about {Math.log2(rank).toFixed(0)} bits regardless of the estimate above.</Callout></div>}
+        <hr className="divider" />
+        <div className="table-wrap">
+          <table className="table">
+            <thead><tr><th>Attacker</th><th>Rate</th><th>Expected time (classical)</th><th>Grover search (quantum)</th></tr></thead>
+            <tbody>
+              {RATES.map((r) => (
+                <tr key={r.label}>
+                  <td>{r.label}<div className="faint small">{r.note}</div></td>
+                  <td className="mono">10^{Math.log10(r.rate)}/s</td>
+                  <td className="mono">{ready ? formatDuration(P.crack_time(entropy, r.rate, false)) : '—'}</td>
+                  <td className="mono">{ready ? formatDuration(P.crack_time(entropy, r.rate, true)) : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </section>
+        <Note title="What the model assumes">
+          The bound L·log₂(N) treats the password as uniformly random over its alphabet. Real passwords are not: dictionary words,
+          keyboard walks, leetspeak and appended years are all tried first, so “Tr0ub4dor&amp;3” is far weaker than its bits suggest.
+          The Grover column halves the exponent — it is the theoretical limit for a quantum computer that could evaluate the hash in
+          superposition, and is not a near-term threat to passwords.
+        </Note>
+      </Panel>
 
-      <section className="glass-panel">
-        <h2 className="card-title">Dictionary Attacks</h2>
-        <p style={{ opacity: 0.8, marginBottom: '1rem' }}>
-          Even if a password has high entropy mathematically, if it exists in a leaked dictionary or is easily guessable (like "Password123!"), its practical entropy is nearly zero.
+      <Panel title="Key derivation cost" refs={['RFC 8018', 'RFC 9106', 'OWASP']}
+        action={<Button variant="primary" onClick={runKdf} disabled={!ready || kdfBusy}>{kdfBusy ? 'Deriving…' : 'Derive keys and time them'}</Button>}>
+        <p className="muted small">
+          A password hash should be slow for the attacker and tolerable for the defender. PBKDF2 iterates HMAC; Argon2id additionally
+          fills memory, so GPU and ASIC attackers lose their parallelism advantage. Defaults are the OWASP 2023 minimums; the salt is random per page load.
         </p>
-        <button disabled style={{ padding: '0.6rem 1.5rem', background: '#333', color: '#999', border: 'none', borderRadius: '4px', cursor: 'not-allowed' }}>
-          Check against embedded Top 1000 wordlist (WASM integration demo)
-        </button>
-      </section>
-    </div>
+        <div className="grid-3">
+          <Field label="PBKDF2-HMAC-SHA256 iterations">{(id) => (
+            <Select id={id} value={iterations} onChange={(e) => setIterations(Number(e.target.value))} disabled={kdfBusy}>
+              {[1000, 10_000, 100_000, 600_000, 1_300_000].map((n) => <option key={n} value={n}>{n.toLocaleString()}</option>)}
+            </Select>
+          )}</Field>
+          <Field label="Argon2id memory">{(id) => (
+            <Select id={id} value={mKib} onChange={(e) => setMKib(Number(e.target.value))} disabled={kdfBusy}>
+              {[1024, 8 * 1024, 19 * 1024, 64 * 1024].map((n) => <option key={n} value={n}>{n / 1024} MiB</option>)}
+            </Select>
+          )}</Field>
+          <Field label="Argon2id passes (t)">{(id) => (
+            <Select id={id} value={tCost} onChange={(e) => setTCost(Number(e.target.value))} disabled={kdfBusy}>
+              {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
+            </Select>
+          )}</Field>
+        </div>
+        <ErrorText error={kdfError} />
+        {kdf && (
+          <>
+            <hr className="divider" />
+            <div className="grid-3">
+              <Stat label="One SHA-256" value={`${kdf.shaUs.toFixed(2)} µs`} sub={`≈ ${(1e6 / kdf.shaUs).toExponential(1)} guesses/s on this device`} />
+              <Stat label={`PBKDF2 · ${iterations.toLocaleString()} it.`} value={formatMs(kdf.pbkdf2Ms)} sub={`≈ ${(1000 / kdf.pbkdf2Ms).toFixed(1)} guesses/s`} tone="warn" />
+              <Stat label={`Argon2id · ${mKib / 1024} MiB × ${tCost}`} value={formatMs(kdf.argonMs)} sub={`≈ ${(1000 / kdf.argonMs).toFixed(1)} guesses/s`} tone="accent" />
+            </div>
+            <div className="stack" style={{ marginTop: '1rem' }}>
+              <Output label="salt (16 bytes)" value={salt} copy={false} />
+              <Output label="PBKDF2-HMAC-SHA256 derived key" value={kdf.pbkdf2} />
+              <Output label="Argon2id tag" value={kdf.argon} />
+            </div>
+            <p className="muted small" style={{ marginTop: '0.75rem' }}>
+              The same password costs {(kdf.pbkdf2Ms * 1000 / kdf.shaUs).toFixed(0)}× more to check with PBKDF2 and {(kdf.argonMs * 1000 / kdf.shaUs).toFixed(0)}× more with Argon2id
+              than with a bare hash — and the attacker pays the same factor per guess.
+            </p>
+          </>
+        )}
+      </Panel>
+    </Page>
   );
 }
