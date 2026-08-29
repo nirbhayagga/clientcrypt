@@ -454,9 +454,3 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
-
-/* Temporary aliases for pages not yet migrated to the component layer. */
-.glass-panel { background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
-.card-title { font-size: 1.1rem; margin-bottom: 1rem; }
-.responsive-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
-.animate-fade-in { animation: none; }
