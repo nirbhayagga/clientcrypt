@@ -40,22 +40,14 @@ impl PasswordSecurity {
         wordlist.lines().any(|line| line == password)
     }
 
+    /// Chains `iterations` SHA-256 computations (each input is the previous
+    /// digest) and returns the final digest. Timing is done by the caller.
     #[wasm_bindgen]
-    pub fn benchmark_sha256(iterations: u32) -> f64 {
-        let window = web_sys::window().expect("should have a window");
-        let performance = window.performance().expect("performance should be available");
-        
-        let start = performance.now();
-        let mut data = vec![0u8; 32];
-        
-        for i in 0..iterations {
-            let mut hasher = Sha256::new();
-            data[0] = (i % 256) as u8;
-            hasher.update(&data);
-            data = hasher.finalize().to_vec();
+    pub fn benchmark_sha256(iterations: u32) -> String {
+        let mut data = [0u8; 32];
+        for _ in 0..iterations {
+            data = Sha256::digest(data).into();
         }
-        
-        let end = performance.now();
-        end - start
+        hex::encode(data)
     }
 }

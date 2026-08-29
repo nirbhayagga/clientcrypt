@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 use aes::Aes128;
 use aes::cipher::{
-    BlockCipher, BlockEncrypt, BlockDecrypt, KeyInit,
+    BlockEncrypt, BlockDecrypt, KeyInit,
     generic_array::GenericArray,
 };
 use hex;

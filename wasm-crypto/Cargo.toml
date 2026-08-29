@@ -2,22 +2,35 @@
 name = "wasm-crypto"
 version = "0.1.0"
 edition = "2024"
+description = "Cryptographic primitives for ClientCrypt, compiled to WebAssembly"
+license = "MIT"
+publish = false
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 wasm-bindgen = "0.2"
-sha2 = "0.10"
-sha1 = "0.10"
-aes = "0.8"
-rsa = { version = "0.9", features = ["pem"] }
-hmac = "0.12"
-rand = { version = "0.8", features = ["getrandom"] }
+console_error_panic_hook = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
 getrandom = { version = "0.2", features = ["js"] }
-num-bigint = { version = "0.4", features = ["rand"] }
+rand = { version = "0.8", features = ["getrandom"] }
 hex = "0.4"
 
-[dependencies.web-sys]
-version = "0.3"
-features = ["Window", "Performance"]
+# Symmetric
+aes = "0.8"
+
+# Hashing / MACs
+sha1 = "0.10"
+sha2 = "0.10"
+hmac = "0.12"
+
+# Public key
+rsa = { version = "0.9", features = ["pem"] }
+num-bigint = { version = "0.4", features = ["rand"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1

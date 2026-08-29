@@ -22,8 +22,9 @@ export default function BenchmarkPage() {
     // Give UI a tick to show running state
     await new Promise(r => setTimeout(r, 50));
     try {
-      const ms = PasswordSecurity.benchmark_sha256(iterations);
-      setWasmTimeMs(ms);
+      const start = performance.now();
+      PasswordSecurity.benchmark_sha256(iterations);
+      setWasmTimeMs(performance.now() - start);
     } catch (e) { console.error(e); }
     setIsWasmRunning(false);
   };
