@@ -13,6 +13,8 @@ pub mod block_ciphers;
 pub mod asymmetric;
 pub mod password;
 pub mod tls;
+pub mod protocols;
+pub mod wireguard;
 
 /// Error type for every fallible export. It is converted into a JavaScript
 /// `Error` only at the wasm boundary, so native unit tests can inspect it.
