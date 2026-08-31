@@ -174,6 +174,14 @@ export default function HashingPage() {
           </Note>
         </Panel>
       </div>
+
+      <Note title="Not the same “hashing”">
+        This section is about <em>cryptographic</em> hash functions, where the design goals are preimage and collision resistance. The other
+        meaning — hash <em>tables</em>, with chaining, open addressing and rehashing — is a data-structures topic with entirely different goals
+        (speed and load factor, not adversarial resistance), and a good hash table function such as FNV or MurmurHash would be a catastrophic
+        digest. Those are visualised step by step in{' '}
+        <a href="https://stepwise.nirbhay.dev" target="_blank" rel="noreferrer">Stepwise</a>, a companion site for algorithms and data structures.
+      </Note>
     </Page>
   );
 }
