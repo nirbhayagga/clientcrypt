@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useWasm, wasm, attempt } from '@/lib/wasm';
-import { Page, Panel, Note, Field, TextInput, TextArea, Select, Segmented, Range, Output, Stat, Status, ErrorText, Button } from '@/components/ui';
+import { Page, Panel, Note, Field, TextInput, TextArea, Select, Segmented, Range, Output, Stat, Status, ErrorText, Button, Tag } from '@/components/ui';
 
 const COPRIME_A = [1, 3, 5, 7, 9, 11, 15, 17, 19, 21, 23, 25];
 const LETTERS = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
@@ -32,10 +32,14 @@ export default function ClassicalCiphers() {
   }) : null;
   const monoOut = mono?.ok ? mono.value : '';
 
-  // Exhaustive Caesar search on whatever is currently in the output box
+  // Exhaustive key search on whatever is currently in the output box,
+  // ranked by the crate (chi-squared against English, lowest first).
   const searchTarget = mode === 'encrypt' ? monoOut : text;
-  const candidates = ready && searchTarget ? C.caesar_brute_force(searchTarget).map((pt, i) => ({ shift: i + 1, pt, chi: C.chi_squared_english(pt) })) : [];
-  const bestShift = candidates.length ? candidates.reduce((m, c) => (c.chi < m.chi ? c : m)).shift : 0;
+  const candidates: { key: string; chi: number; text: string }[] =
+    ready && searchTarget && cipher !== 'atbash'
+      ? (C.key_search(cipher, searchTarget) as { key: string; chi: number; text: string }[])
+      : [];
+  const shown = cipher === 'affine' ? candidates.slice(0, 12) : candidates;
 
   // Vigenère
   const [vText, setVText] = useState('ATTACK AT DAWN');
@@ -113,27 +117,36 @@ export default function ClassicalCiphers() {
         )}
       </Panel>
 
-      <Panel title="Exhaustive key search" refs={['χ² statistic']}>
-        <p className="muted small">
-          A Caesar key space of 25 is searched by trial. Candidates are ranked by the chi-squared distance between their letter
-          distribution and English; the lowest value is almost always the plaintext once the text exceeds a few dozen letters.
-          Applied to the {mode === 'encrypt' ? 'ciphertext above' : 'input above'}.
-        </p>
-        <div className="table-wrap" style={{ minHeight: '31rem' }}>
-          <table className="table">
-            <thead><tr><th>Shift</th><th>χ²</th><th>Candidate</th></tr></thead>
-            <tbody>
-              {candidates.map((c) => (
-                <tr key={c.shift} style={c.shift === bestShift ? { color: 'var(--ok)' } : undefined}>
-                  <td className="mono">{c.shift}</td>
-                  <td className="mono">{Number.isFinite(c.chi) ? c.chi.toFixed(1) : '—'}</td>
-                  <td className="mono">{c.pt.length > 72 ? `${c.pt.slice(0, 72)}…` : c.pt}</td>
-                </tr>
-              ))}
-              {!candidates.length && <tr><td colSpan={3} className="faint">No ciphertext yet.</td></tr>}
-            </tbody>
-          </table>
-        </div>
+      <Panel title="Exhaustive key search" refs={['χ² statistic']}
+        action={cipher !== 'atbash' ? <Tag>{cipher === 'affine' ? '312 keys' : '25 keys'}</Tag> : undefined}>
+        {cipher === 'atbash' ? (
+          <Note title="Nothing to search">
+            Atbash has no key: E(x) = 25 − x is one fixed permutation, and it is an involution, so applying it a second
+            time already returns the plaintext. A cipher with a key space of one offers no security to search through.
+          </Note>
+        ) : (
+          <>
+            <p className="muted small">
+              {`The whole ${cipher === 'affine' ? 'affine key space — 12 valid values of a × 26 of b = 312 keys —' : 'Caesar key space of 25 shifts'} is tried against the ${mode === 'encrypt' ? 'ciphertext above' : 'input above'} and ranked by the chi-squared distance between each candidate's letter distribution and English. The lowest value is almost always the plaintext once the text exceeds a few dozen letters${cipher === 'affine' ? '; only the 12 most English-like candidates are shown' : ''}.`}
+            </p>
+            <div className="table-wrap" style={{ minHeight: '31rem' }}>
+              <table className="table">
+                <thead><tr><th>Rank</th><th>Key</th><th>χ²</th><th>Candidate</th></tr></thead>
+                <tbody>
+                  {shown.map((c, i) => (
+                    <tr key={c.key} style={i === 0 ? { color: 'var(--ok)' } : undefined}>
+                      <td className="mono">{i + 1}</td>
+                      <td className="mono" style={{ whiteSpace: 'nowrap' }}>{c.key}</td>
+                      <td className="mono">{Number.isFinite(c.chi) ? c.chi.toFixed(1) : '—'}</td>
+                      <td className="mono">{c.text.length > 64 ? `${c.text.slice(0, 64)}…` : c.text}</td>
+                    </tr>
+                  ))}
+                  {!shown.length && <tr><td colSpan={4} className="faint">No ciphertext yet.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </Panel>
 
       <Panel title="Vigenère cipher" refs={['polyalphabetic']}>

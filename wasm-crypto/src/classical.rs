@@ -4,6 +4,7 @@
 //! through unchanged and does not consume key material.
 
 use crate::{CryptoError, Result};
+use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
 /// Relative frequency of A–Z in English prose (percent), from Lewand,
@@ -52,6 +53,44 @@ fn mod_inverse_26(a: u8) -> Option<u8> {
     (1..26u8).find(|&x| (a as u16 * x as u16) % 26 == 1)
 }
 
+/// Multipliers a with gcd(a, 26) = 1; the affine key space is these 12 × 26 b.
+pub const AFFINE_MULTIPLIERS: [u8; 12] = [1, 3, 5, 7, 9, 11, 15, 17, 19, 21, 23, 25];
+
+/// One decryption candidate from an exhaustive key search, scored against
+/// English so the true key sorts to the front.
+#[derive(Serialize, Clone)]
+pub struct KeyCandidate {
+    pub key: String,
+    pub chi: f64,
+    pub text: String,
+}
+
+fn ranked(mut v: Vec<KeyCandidate>) -> Vec<KeyCandidate> {
+    v.sort_by(|a, b| a.chi.partial_cmp(&b.chi).unwrap_or(std::cmp::Ordering::Equal));
+    v
+}
+
+/// Every Caesar decryption (25 keys), ranked by chi-squared against English.
+pub fn caesar_search(text: &str) -> Vec<KeyCandidate> {
+    ranked((1..=25).map(|k| {
+        let t = ClassicalCipher::caesar_decrypt(text, k);
+        KeyCandidate { key: format!("k = {k}"), chi: chi_squared(&letters(&t)), text: t }
+    }).collect())
+}
+
+/// Every affine decryption (312 keys), ranked by chi-squared against English.
+pub fn affine_search(text: &str) -> Vec<KeyCandidate> {
+    let mut out = Vec::with_capacity(312);
+    for &a in &AFFINE_MULTIPLIERS {
+        for b in 0..26u8 {
+            if let Ok(t) = ClassicalCipher::affine_decrypt(text, a, b) {
+                out.push(KeyCandidate { key: format!("a = {a}, b = {b}"), chi: chi_squared(&letters(&t)), text: t });
+            }
+        }
+    }
+    ranked(out)
+}
+
 #[wasm_bindgen]
 pub struct ClassicalCipher;
 
@@ -68,6 +107,18 @@ impl ClassicalCipher {
     /// Every decryption for shifts 1..=25, in shift order.
     pub fn caesar_brute_force(text: &str) -> Vec<String> {
         (1..=25).map(|s| Self::caesar_decrypt(text, s)).collect()
+    }
+
+    /// Exhaustive key search for a monoalphabetic cipher, ranked by
+    /// chi-squared against English (lowest first). `cipher` is "caesar" or
+    /// "affine"; Atbash is keyless and has nothing to search.
+    pub fn key_search(cipher: &str, text: &str) -> Result<JsValue> {
+        let candidates = match cipher {
+            "caesar" => caesar_search(text),
+            "affine" => affine_search(text),
+            other => return Err(CryptoError::new(format!("No key space to search for '{other}'"))),
+        };
+        serde_wasm_bindgen::to_value(&candidates).map_err(|e| CryptoError::new(e.to_string()))
     }
 
     /// Atbash: A↔Z, B↔Y, …; an involution, so it is its own inverse.
@@ -206,6 +257,20 @@ mod tests {
         assert_eq!(ClassicalCipher::caesar_decrypt("KHOOR, Zruog!", 3), "HELLO, World!");
         assert_eq!(ClassicalCipher::caesar_encrypt("abc", 26), "abc");
         assert_eq!(ClassicalCipher::caesar_brute_force("KHOOR")[2], "HELLO");
+    }
+
+    #[test]
+    fn exhaustive_key_search_ranks_the_true_key_first() {
+        // Caesar: 25 candidates, plaintext scores lowest chi-squared.
+        let caesar = caesar_search(&ClassicalCipher::caesar_encrypt(SAMPLE, 7));
+        assert_eq!(caesar.len(), 25);
+        assert_eq!(caesar[0].text, SAMPLE);
+        assert_eq!(caesar[0].key, "k = 7");
+        // Affine: 312 candidates, true (a, b) = (5, 8) recovered.
+        let affine = affine_search(&ClassicalCipher::affine_encrypt(SAMPLE, 5, 8).unwrap());
+        assert_eq!(affine.len(), 312);
+        assert_eq!(affine[0].text, SAMPLE);
+        assert_eq!(affine[0].key, "a = 5, b = 8");
     }
 
     #[test]

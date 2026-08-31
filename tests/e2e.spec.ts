@@ -19,9 +19,19 @@ test('classical: Caesar, Vigenère known answers and key recovery', async ({ pag
   await expect(page.getByLabel('Vigenère output')).toContainText('LXFOPV EF RNHR');
   await expect(page.getByText('Step 2 — recovered key').locator('..').locator('.stat-value')).toHaveText('LEMON');
   await expect(page.getByLabel('Recovered plaintext')).toContainText('It was the best of times');
-  // Exhaustive search ranks the true shift first (highlighted row).
+  // Exhaustive search ranks the true key first for Caesar and affine, and
+  // explains that Atbash has no key space at all.
+  const searchRow = page.locator('section', { hasText: 'Exhaustive key search' }).locator('tbody tr').first();
+  await expect(searchRow).toContainText('k = 3');
+  await field(page, 'Text').first().fill('It was the best of times, it was the worst of times, it was the age of wisdom');
+  await page.getByLabel('Cipher', { exact: true }).selectOption('affine');
+  await expect(searchRow).toContainText('a = 5, b = 8');
+  await expect(searchRow).toContainText('IT WAS THE BEST OF TIMES');
+  await page.getByLabel('Cipher', { exact: true }).selectOption('atbash');
+  await expect(page.getByText('Nothing to search')).toBeVisible();
+  await page.getByLabel('Cipher', { exact: true }).selectOption('caesar');
   await page.getByRole('group', { name: 'Direction' }).first().getByRole('button', { name: 'Decrypt' }).click();
-  await expect(page.getByLabel('Substitution output')).toContainText('QEB NRFZH');
+  await expect(page.getByLabel('Substitution output')).toContainText('Fq txp qeb ybpq lc qfjbp');
 });
 
 test('block ciphers: FIPS-197 vector, duplicate-block detection, GCM tamper detection', async ({ page }) => {
