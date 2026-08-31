@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 
-export const ROUTES = ['/', '/classical/', '/block-ciphers/', '/hashing/', '/asymmetric/', '/passwords/', '/tls/', '/encoding/', '/benchmark/'];
+export const ROUTES = ['/', '/classical/', '/block-ciphers/', '/hashing/', '/asymmetric/', '/passwords/', '/tls/', '/protocols/', '/encoding/', '/benchmark/'];
 
 /** Navigates, waits for the WebAssembly module (if the page uses it) and collects console errors. */
 export async function open(page: Page, route: string): Promise<string[]> {

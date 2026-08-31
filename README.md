@@ -12,14 +12,15 @@ https://clientcrypt.nirbhay.dev
 | 4  | Public-key cryptography   | RSA (PKCS#1 v1.5, OAEP, PSS, key components); finite-field DH with RFC 7919 groups or generated safe primes; X25519 | RFC 8017, RFC 7919, RFC 7748 |
 | 5  | Password security         | Entropy bound, attacker-rate table, top-1000 lookup, PBKDF2 and Argon2id timing               | RFC 8018, RFC 9106               |
 | 6  | TLS 1.3 handshake         | X25519 key share, HKDF key schedule, traffic keys, AEAD record protection                     | RFC 8446, RFC 5869               |
-| 7  | Encodings                 | Base64, Base64url, hex, percent, binary; code-point and UTF-8 byte view                       | RFC 4648                         |
-| 8  | Benchmark                 | Identical chained SHA-256 workload in WebAssembly, JavaScript and WebCrypto                   | —                                |
+| 7  | Applied protocols         | WPA2-PSK key derivation, HOTP/TOTP one-time passwords, JWT signing (HS256/RS256), the WireGuard handshake | IEEE 802.11i, RFC 4226/6238, RFC 7519, Noise IKpsk2 |
+| 8  | Encodings                 | Base64, Base64url, hex, percent, binary; code-point and UTF-8 byte view                       | RFC 4648                         |
+| 9  | Benchmark                 | Identical chained SHA-256 workload in WebAssembly, JavaScript and WebCrypto                   | —                                |
 
 The only network request the application can make is the optional Have I Been Pwned range query in §3 (first five hex digits of a SHA-1 digest).
 
 ## Correctness
 
-`wasm-crypto` carries known-answer tests for every primitive it exposes: FIPS-197 Appendix C (AES-128/192/256), SP 800-38A (CBC, CTR), the GCM specification test cases, FIPS 180-4 and FIPS 202 digests, RFC 2202/4231 HMAC, RFC 6070-style PBKDF2-SHA256, the RFC 9106 Argon2id vector, RFC 7748 X25519, RFC 5869 HKDF, and the RFC 8448 TLS 1.3 key-schedule trace. The RFC 7919 primes are checked to be safe primes. Playwright drives the same vectors through the UI.
+`wasm-crypto` carries known-answer tests for every primitive it exposes: FIPS-197 Appendix C (AES-128/192/256), SP 800-38A (CBC, CTR), the GCM specification test cases, FIPS 180-4 and FIPS 202 digests, RFC 2202/4231 HMAC, RFC 6070-style PBKDF2-SHA256, the RFC 9106 Argon2id vector, RFC 7748 X25519, RFC 5869 HKDF, the RFC 8448 TLS 1.3 key-schedule trace, the IEEE 802.11i WPA2 PMK vectors, and the RFC 4226 / RFC 6238 HOTP and TOTP vectors. The WireGuard handshake is checked by having both peers derive their transport keys independently and requiring agreement. The RFC 7919 primes are checked to be safe primes. Playwright drives the same vectors through the UI.
 
 ```bash
 cargo test --manifest-path wasm-crypto/Cargo.toml   # crate tests
@@ -57,6 +58,10 @@ The build is a static export (`out/`), so any static host works.
 ## CI
 
 One workflow, `.github/workflows/ci.yml`: build → `cargo test` → lint/type-check → Playwright → Lighthouse, then on pushes to `main` or `v*` tags a GHCR image and the optional deploy jobs. Dependabot version updates are disabled on purpose (see `.github/dependabot.yml`); apply updates by hand in batches.
+
+## Related
+
+[Stepwise](https://stepwise.nirbhay.dev) is the companion site for algorithms and data structures, and the two cross-link where a topic has both a data-structure and a cryptographic reading: hash *tables* (chaining, probing, rehashing) and the sieve of Eratosthenes live there; cryptographic hash functions and modular arithmetic for RSA/Diffie–Hellman live here.
 
 ## License
 

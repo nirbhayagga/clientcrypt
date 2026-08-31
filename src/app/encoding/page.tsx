@@ -50,7 +50,7 @@ export default function EncodingPage() {
   const chars = decodedBytes ? Array.from(new TextDecoder().decode(decodedBytes)) : [];
 
   return (
-    <Page kicker="§7 · Encodings" title="Binary-to-text encodings"
+    <Page kicker="§8 · Encodings" title="Binary-to-text encodings"
       lede="Encodings change the representation of bytes, not their secrecy: anyone can reverse them without a key. They appear throughout cryptography — PEM files are Base64, JWTs are Base64url, digests are printed as hex — which is exactly why they are often mistaken for encryption.">
       <Panel title="Convert" refs={FORMATS.map((f) => f.std).filter((s) => s !== '—').filter((v, i, a) => a.indexOf(v) === i)}
         action={<Segmented label="Direction" value={dir} onChange={setDir} options={[{ value: 'encode', label: 'Text → encoding' }, { value: 'decode', label: 'Encoding → text' }]} />}>

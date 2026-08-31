@@ -8,8 +8,9 @@ const CONTENTS: { num: string; href: string; title: string; topics: string; std:
   { num: '§4', href: '/asymmetric/', title: 'Public-key cryptography', topics: 'RSA key generation, PKCS#1 v1.5 and OAEP encryption, signatures; finite-field Diffie–Hellman; X25519', std: 'RFC 8017 · RFC 7919 · RFC 7748' },
   { num: '§5', href: '/passwords/', title: 'Password security', topics: 'Entropy estimation, guessing-time model, common-password lookup, PBKDF2 and Argon2id cost', std: 'RFC 8018 · RFC 9106' },
   { num: '§6', href: '/tls/', title: 'TLS 1.3 handshake', topics: 'Key share, HKDF key schedule, traffic secrets — step by step', std: 'RFC 8446 · RFC 5869' },
-  { num: '§7', href: '/encoding/', title: 'Encodings', topics: 'Base64, Base64url, hex, URL and binary encodings; these are not encryption', std: 'RFC 4648' },
-  { num: '§8', href: '/benchmark/', title: 'WASM vs JS benchmark', topics: 'Identical SHA-256 workload in Rust/WebAssembly, plain JavaScript and WebCrypto', std: '—' },
+  { num: '§7', href: '/protocols/', title: 'Applied protocols', topics: 'WPA2-PSK key derivation, TOTP/HOTP one-time passwords, JWT signing, and the WireGuard handshake', std: 'IEEE 802.11i · RFC 6238 · RFC 7519' },
+  { num: '§8', href: '/encoding/', title: 'Encodings', topics: 'Base64, Base64url, hex, URL and binary encodings; these are not encryption', std: 'RFC 4648' },
+  { num: '§9', href: '/benchmark/', title: 'WASM vs JS benchmark', topics: 'Identical SHA-256 workload in Rust/WebAssembly, plain JavaScript and WebCrypto', std: '—' },
 ];
 
 const CRATES: [string, string][] = [

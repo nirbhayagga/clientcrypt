@@ -26,7 +26,7 @@ test('classical: Caesar, Vigenère known answers and key recovery', async ({ pag
   await field(page, 'Text').first().fill('It was the best of times, it was the worst of times, it was the age of wisdom');
   await page.getByLabel('Cipher', { exact: true }).selectOption('affine');
   await expect(searchRow).toContainText('a = 5, b = 8');
-  await expect(searchRow).toContainText('IT WAS THE BEST OF TIMES');
+  await expect(searchRow).toContainText('It was the best of times');
   await page.getByLabel('Cipher', { exact: true }).selectOption('atbash');
   await expect(page.getByText('Nothing to search')).toBeVisible();
   await page.getByLabel('Cipher', { exact: true }).selectOption('caesar');
@@ -100,6 +100,35 @@ test('tls: full handshake and record protection', async ({ page }) => {
   await expect(page.getByText('6f2615a108c702c5678f54fc9dbab69716c076189c48250cebeac3576c3611ba')).toBeVisible(); // derived
   await page.getByRole('button', { name: 'Encrypt record' }).click();
   await expect(page.getByText('On the wire:')).toContainText('1703030');
+});
+
+test('protocols: WPA2 vector, TOTP, JWT tamper detection, WireGuard agreement', async ({ page }) => {
+  test.slow();
+  await open(page, '/protocols/');
+
+  // WPA2: the IEEE 802.11i test vector, and the SSID really is the salt.
+  await expect(page.getByLabel('WPA2 PMK')).toContainText('f42c6fc52df0ebef9ebb4b90b38a5f902e83fe1b135a70e23aed762e9710a12e');
+  await field(page, 'SSID').fill('ThisIsASSID');
+  await field(page, 'Passphrase').fill('ThisIsAPassword');
+  await expect(page.getByLabel('WPA2 PMK')).toContainText('0dc0d6eb90555ed6419756b9a15ec3e3209b63df707dd508d14581f8982721af');
+
+  // TOTP: a live code of the requested width, from the RFC test secret.
+  const code = page.getByText('Current code').locator('..').locator('.stat-value');
+  await expect(code).toHaveText(/^\d{6}$/);
+  await field(page, 'Digits').selectOption('8');
+  await expect(code).toHaveText(/^\d{8}$/);
+
+  // JWT: sign, verify, then tamper with the payload segment.
+  await page.getByRole('button', { name: 'Sign token' }).click();
+  await expect(page.getByText('Signature valid')).toBeVisible();
+  const token = page.getByLabel(/^Token/);
+  const signed = (await token.inputValue()).split('.');
+  await token.fill(`${signed[0]}.${signed[1].slice(0, -2)}XY.${signed[2]}`);
+  await expect(page.getByText('Signature invalid')).toBeVisible();
+
+  // WireGuard: both peers must land on the same transport keys.
+  await page.getByRole('button', { name: 'Run handshake' }).click();
+  await expect(page.getByText('Both peers independently derived the same chaining key')).toBeVisible();
 });
 
 test('encoding: base64 round trip', async ({ page }) => {

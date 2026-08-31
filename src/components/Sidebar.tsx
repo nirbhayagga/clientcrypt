@@ -10,8 +10,9 @@ export const SECTIONS = [
   { href: '/asymmetric/', num: '§4', label: 'Public-key cryptography' },
   { href: '/passwords/', num: '§5', label: 'Password security' },
   { href: '/tls/', num: '§6', label: 'TLS 1.3 handshake' },
-  { href: '/encoding/', num: '§7', label: 'Encodings' },
-  { href: '/benchmark/', num: '§8', label: 'WASM vs JS benchmark' },
+  { href: '/protocols/', num: '§7', label: 'Applied protocols' },
+  { href: '/encoding/', num: '§8', label: 'Encodings' },
+  { href: '/benchmark/', num: '§9', label: 'WASM vs JS benchmark' },
 ] as const;
 
 export default function Sidebar({ version }: { version: string }) {
