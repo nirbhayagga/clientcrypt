@@ -81,7 +81,7 @@ export default function AsymmetricPage() {
   const xsB = xa && xb ? attempt(() => A.x25519_shared(xb[0], xa[1])) : null;
 
   return (
-    <Page kicker="§4 · Public-key cryptography" title="RSA, Diffie–Hellman and X25519"
+    <Page kicker="§5 · Public-key cryptography" title="RSA, Diffie–Hellman and X25519"
       lede="Public-key schemes rest on problems believed hard in one direction: factoring n = pq for RSA, and discrete logarithms in a prime-order group for Diffie–Hellman. The private computations below use the same libraries as production software; only the parameter sizes are chosen for speed.">
       <Status state={state} />
 
@@ -231,7 +231,7 @@ export default function AsymmetricPage() {
             </div>
           ))}
         </div>
-        {xsA?.ok && xsB?.ok && <div style={{ marginTop: '1rem' }}><Callout tone={xsA.value === xsB.value ? 'ok' : 'danger'}>{xsA.value === xsB.value ? 'Both sides derive the same 32-byte secret; TLS feeds it into HKDF (§6) rather than using it directly.' : 'Secrets differ.'}</Callout></div>}
+        {xsA?.ok && xsB?.ok && <div style={{ marginTop: '1rem' }}><Callout tone={xsA.value === xsB.value ? 'ok' : 'danger'}>{xsA.value === xsB.value ? 'Both sides derive the same 32-byte secret; TLS feeds it into HKDF (§7) rather than using it directly.' : 'Secrets differ.'}</Callout></div>}
       </Panel>
     </Page>
   );

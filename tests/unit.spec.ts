@@ -30,11 +30,18 @@ test.describe('byte helpers', () => {
 
 test.describe('static export', () => {
   test('ships headers, robots, sitemap and the wasm module', () => {
-    for (const f of ['out/_headers', 'out/robots.txt', 'out/sitemap.xml', 'out/pkg/wasm_crypto_bg.wasm', 'out/404.html', 'out/classical/index.html']) {
+    for (const f of ['out/_headers', 'out/robots.txt', 'out/sitemap.xml', 'out/pkg/wasm_crypto_bg.wasm', 'out/404.html', 'out/classical/index.html', 'out/numbers/index.html', 'out/protocols/index.html']) {
       expect(existsSync(f), f).toBe(true);
     }
     const headers = readFileSync('out/_headers', 'utf8');
     expect(headers).toContain("'wasm-unsafe-eval'");
     expect(headers).toContain('api.pwnedpasswords.com');
+    // The 404 is ours, not the framework default.
+    expect(readFileSync('out/404.html', 'utf8')).toContain('No such page');
+    // Every route is listed in the sitemap.
+    const sitemap = readFileSync('out/sitemap.xml', 'utf8');
+    for (const r of ['', 'numbers/', 'protocols/', 'benchmark/']) {
+      expect(sitemap, r).toContain(`https://clientcrypt.nirbhay.dev/${r}<`);
+    }
   });
 });

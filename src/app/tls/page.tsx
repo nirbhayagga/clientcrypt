@@ -69,7 +69,7 @@ export default function TlsPage() {
   ] : [];
 
   return (
-    <Page kicker="§6 · TLS 1.3 handshake" title="TLS 1.3: key exchange and key schedule"
+    <Page kicker="§7 · TLS 1.3 handshake" title="TLS 1.3: key exchange and key schedule"
       lede="One round trip establishes forward-secret keys: each side contributes an ephemeral X25519 share, and HKDF turns the shared secret and the handshake transcript into separate keys for each direction and each phase.">
       <Status state={state} />
 

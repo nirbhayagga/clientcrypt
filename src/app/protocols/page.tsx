@@ -33,7 +33,7 @@ function Wpa2Panel({ ready }: { ready: boolean }) {
       <ErrorText error={pmk && !pmk.ok ? pmk.error : null} />
       <Note title="Why home Wi-Fi passwords get cracked">
         The 4-way handshake that follows derives session keys from the PMK and is sent in the clear, so anyone who records it
-        can test passphrase guesses offline at 4096 SHA-1 iterations each — cheap for a GPU. The defence is exactly §5:
+        can test passphrase guesses offline at 4096 SHA-1 iterations each — cheap for a GPU. The defence is exactly §6:
         a passphrase with enough entropy. WPA3&apos;s SAE replaces this construction with a PAKE, which removes the offline attack.
       </Note>
     </Panel>
@@ -234,10 +234,10 @@ function WireGuardPanel({ ready }: { ready: boolean }) {
           </div>
         </>
       )}
-      <Note title="Compared with TLS (§6)">
+      <Note title="Compared with TLS (§7)">
         Same ingredients, different trade-offs: identity hiding (the initiator&apos;s static key travels encrypted), no certificates or
         negotiation (trust is &quot;this exact public key&quot;, so there is no downgrade surface), and the whole handshake fits in one round trip.
-        The chaining-key / hash ladder shown in §6 for HKDF-SHA256 runs here with HMAC-BLAKE2s. Encrypted fields and derived keys differ on
+        The chaining-key / hash ladder shown in §7 for HKDF-SHA256 runs here with HMAC-BLAKE2s. Encrypted fields and derived keys differ on
         every run because the ephemerals are fresh; the first row is the fixed BLAKE2s hash of the construction name.
       </Note>
     </Panel>
@@ -250,8 +250,8 @@ export default function ProtocolsPage() {
   const state = useWasm();
   const ready = state === 'ready';
   return (
-    <Page kicker="§7 · Applied protocols" title="Protocols in the field"
-      lede="Four places the primitives from §1–§6 turn up between real machines: your Wi-Fi password, the six digits from an authenticator app, the token in an Authorization header, and a VPN tunnel.">
+    <Page kicker="§8 · Applied protocols" title="Protocols in the field"
+      lede="Four places the primitives from §1–§7 turn up between real machines: your Wi-Fi password, the six digits from an authenticator app, the token in an Authorization header, and a VPN tunnel.">
       <Status state={state} />
       <Wpa2Panel ready={ready} />
       <TotpPanel ready={ready} />

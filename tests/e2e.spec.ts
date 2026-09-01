@@ -102,6 +102,43 @@ test('tls: full handshake and record protection', async ({ page }) => {
   await expect(page.getByText('On the wire:')).toContainText('1703030');
 });
 
+test('hashing internals: SHA-256 rounds and the length extension forgery', async ({ page }) => {
+  await open(page, '/hashing/');
+  const internals = page.locator('section', { hasText: 'Inside SHA-256' });
+  // "abc" is one block; the state leaving it is the digest.
+  await expect(internals.getByText('1 block · 64 bytes padded')).toBeVisible();
+  await expect(internals.getByText('W[0] = 61626380')).toBeVisible(); // schedule word 0 is "abc" + 0x80
+  await expect(internals.getByText('ba7816bf 8f01cfea 414140de 5dae2223 b00361a3 96177a9c b410ff61 f20015ad')).toBeVisible();
+
+  // The forgery succeeds with the right secret length and fails with a wrong one.
+  const ext = page.locator('section', { hasText: 'Length extension' });
+  await expect(ext.getByText('Forged.')).toBeVisible();
+  await ext.getByRole('slider').fill('20');
+  await expect(ext.getByText('guessed secret length is wrong')).toBeVisible();
+});
+
+test('numbers: modular exponentiation, Euclid, RSA and DH by hand', async ({ page }) => {
+  await open(page, '/numbers/');
+  // 4^13 mod 497 = 445 in four squarings rather than twelve multiplications.
+  await expect(page.getByText('445', { exact: true }).first()).toBeVisible();
+  // Extended Euclid gives the RSA inverse 17^-1 mod 3120 = 2753.
+  await expect(page.getByText('a⁻¹ mod b = 2753')).toBeVisible();
+  // The textbook RSA example: 61 × 53 = 3233, d = 413, 65 -> 2790 -> 65.
+  const rsa = page.locator('section', { hasText: 'RSA key generation, worked by hand' });
+  await expect(rsa.getByText('61 × 53 = 3233')).toBeVisible();
+  await expect(rsa.getByText('(3233, 413)')).toBeVisible();
+  await expect(rsa.getByText('65 → 2790 → 65')).toBeVisible();
+  // Diffie-Hellman with p = 23 lands on the shared secret 2.
+  await expect(page.getByText('Both sides hold 2.')).toBeVisible();
+});
+
+test('404: a missing page gets the custom not-found', async ({ page }) => {
+  const res = await page.goto('/no-such-page/');
+  expect(res?.status()).toBe(404);
+  await expect(page.locator('h1')).toHaveText('No such page');
+  await expect(page.getByRole('link', { name: 'Number theory', exact: true })).toBeVisible();
+});
+
 test('protocols: WPA2 vector, TOTP, JWT tamper detection, WireGuard agreement', async ({ page }) => {
   test.slow();
   await open(page, '/protocols/');

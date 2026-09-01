@@ -2,18 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-
-export const SECTIONS = [
-  { href: '/classical/', num: '§1', label: 'Classical ciphers' },
-  { href: '/block-ciphers/', num: '§2', label: 'Block ciphers' },
-  { href: '/hashing/', num: '§3', label: 'Hash functions & MACs' },
-  { href: '/asymmetric/', num: '§4', label: 'Public-key cryptography' },
-  { href: '/passwords/', num: '§5', label: 'Password security' },
-  { href: '/tls/', num: '§6', label: 'TLS 1.3 handshake' },
-  { href: '/protocols/', num: '§7', label: 'Applied protocols' },
-  { href: '/encoding/', num: '§8', label: 'Encodings' },
-  { href: '/benchmark/', num: '§9', label: 'WASM vs JS benchmark' },
-] as const;
+import { SECTIONS } from '@/lib/sections';
 
 export default function Sidebar({ version }: { version: string }) {
   const pathname = usePathname();
@@ -35,7 +24,7 @@ export default function Sidebar({ version }: { version: string }) {
         ))}
       </nav>
       <div className="sidebar-foot">
-        v{version}<br />
+        v{version} · <a href="https://github.com/nirbhayagga/clientcrypt" target="_blank" rel="noreferrer">source</a><br />
         Rust → WebAssembly<br />
         No data leaves the browser.
       </div>

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useWasm, wasm, attempt, errorMessage } from '@/lib/wasm';
 import { hexToBytes, hammingDistanceHex } from '@/lib/bytes';
-import { Page, Panel, Note, Field, TextInput, TextArea, Select, Segmented, Output, Stat, Status, ErrorText, Button, Callout, Tag } from '@/components/ui';
+import { Page, Panel, Note, Field, TextInput, TextArea, Select, Segmented, Range, Output, Stat, Status, ErrorText, Button, Callout, Tag } from '@/components/ui';
 
 type Fmt = 'text' | 'hex';
 
@@ -28,6 +28,170 @@ function HexDiff({ a, b }: { a: string; b: string }) {
     <div className="hexdiff">
       {a.split('').map((ch, i) => (ch === b[i] ? ch : <span key={i} className="d">{ch}</span>))}
     </div>
+  );
+}
+
+interface Round { index: number; w: string; k: string; t1: string; t2: string; state: string[] }
+interface Sha256Trace {
+  message_len: number; padded_len: number; block_count: number; block_index: number;
+  block_hex: string; padding_hex: string; schedule: string[]; rounds: Round[];
+  state_in: string[]; state_out: string[]; digest: string;
+}
+interface LengthExtension {
+  original_digest: string; recovered_state: string[]; glue_padding_hex: string;
+  forged_message_hex: string; forged_digest: string; genuine_digest: string; attack_succeeded: boolean;
+}
+
+const LETTERS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+/** SHA-256's compression function, one block and one round at a time. */
+function Sha256InternalsPanel({ ready }: { ready: boolean }) {
+  const [msg, setMsg] = useState('abc');
+  const [block, setBlock] = useState(0);
+  const [round, setRound] = useState(0);
+  const t = ready ? attempt(() => wasm.HashInternals.sha256_trace(new TextEncoder().encode(msg), block) as Sha256Trace) : null;
+  const trace = t?.ok ? t.value : null;
+  const r = trace?.rounds[Math.min(round, 63)];
+  const prev = round > 0 ? trace?.rounds[round - 1] : null;
+  const before = prev ? prev.state : trace?.state_in;
+
+  return (
+    <Panel title="Inside SHA-256" refs={['FIPS 180-4 §6.2']}
+      action={trace && <Tag>{trace.block_count} block{trace.block_count === 1 ? '' : 's'} · {trace.padded_len} bytes padded</Tag>}>
+      <p className="muted small">
+        SHA-256 pads the message to a multiple of 64 bytes, then folds each block into a 256-bit state through 64 rounds. Each
+        round mixes in one word of the message schedule and one of the constants K, which are the fractional parts of the cube
+        roots of the first 64 primes — chosen so nobody can claim a hidden structure.
+      </p>
+      <div className="grid-2">
+        <Field label="Message" hint={trace ? `${trace.message_len} bytes` : ''}>
+          {(id) => <TextInput id={id} mono value={msg} onChange={(e) => { setMsg(e.target.value); setBlock(0); }} disabled={!ready} />}
+        </Field>
+        <Field label="Block" hint={trace ? `0 – ${trace.block_count - 1}` : ''}>
+          {(id) => (
+            <Select id={id} value={block} onChange={(e) => setBlock(Number(e.target.value))} disabled={!ready || !trace}>
+              {Array.from({ length: trace?.block_count ?? 1 }, (_, i) => <option key={i} value={i}>block {i}</option>)}
+            </Select>
+          )}
+        </Field>
+      </div>
+      <ErrorText error={t && !t.ok ? t.error : null} />
+      {trace && (
+        <>
+          <hr className="divider" />
+          <div className="label"><span>Padded block (64 bytes)</span><span className="hint">message · padding</span></div>
+          <div className="hexdiff" style={{ marginTop: '0.35rem' }}>
+            {trace.block_hex.slice(0, Math.max(0, (trace.message_len - trace.block_index * 64) * 2))}
+            <span className="d">{trace.block_hex.slice(Math.max(0, (trace.message_len - trace.block_index * 64) * 2))}</span>
+          </div>
+          <p className="faint small" style={{ marginTop: '0.4rem' }}>
+            Padding is a single 0x80 byte, zeros, then the message length in bits as a 64-bit big-endian integer — so two
+            different messages can never share a padded form.
+          </p>
+
+          <hr className="divider" />
+          <div className="label"><span>Message schedule W[0…63]</span><span className="hint">first 16 words are the block; the rest are derived</span></div>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(5.5rem, 1fr))', gap: '0.25rem', marginTop: '0.5rem' }}>
+            {trace.schedule.map((w, i) => (
+              <div key={i} className="mono" style={{
+                fontSize: '0.68rem', padding: '0.15rem 0.3rem', borderRadius: '3px',
+                background: i === round ? 'var(--accent-dim)' : 'var(--bg-inset)',
+                border: `1px solid ${i === round ? 'var(--accent-border)' : 'var(--border)'}`,
+                color: i < 16 ? 'var(--fg)' : 'var(--fg-muted)',
+              }}>{w}</div>
+            ))}
+          </div>
+
+          <hr className="divider" />
+          <Range label={`Round ${round} of 63`} min={0} max={63} value={round} onChange={setRound} disabled={!ready} format={(v) => `W[${v}] = ${trace.schedule[v]}`} />
+          {r && before && (
+            <div className="table-wrap" style={{ marginTop: '0.75rem' }}>
+              <table className="table">
+                <thead><tr><th>Word</th>{LETTERS.map((l) => <th key={l}>{l}</th>)}</tr></thead>
+                <tbody>
+                  <tr><td className="muted">before</td>{before.map((v, i) => <td key={i} className="mono">{v}</td>)}</tr>
+                  <tr><td className="muted">after</td>{r.state.map((v, i) => (
+                    <td key={i} className="mono" style={before[i] !== v ? { color: 'var(--accent)' } : undefined}>{v}</td>
+                  ))}</tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+          {r && (
+            <p className="muted small" style={{ marginTop: '0.75rem' }}>
+              T₁ = h + Σ₁(e) + Ch(e,f,g) + K[{round}] + W[{round}] = <span className="mono">{r.t1}</span> ·
+              T₂ = Σ₀(a) + Maj(a,b,c) = <span className="mono">{r.t2}</span>.
+              Every register shifts one place down; only <em>a</em> and <em>e</em> get new values. After 64 rounds the result is
+              added to the incoming state — that addition is what makes the round function irreversible.
+            </p>
+          )}
+          <div className="grid-2" style={{ marginTop: '1rem' }}>
+            <Output label="State entering this block" value={trace.state_in.join(' ')} copy={false} />
+            <Output label="State leaving this block" value={trace.state_out.join(' ')} tone={trace.block_index === trace.block_count - 1 ? 'accent' : undefined}
+              copy={false} />
+          </div>
+          {trace.block_index === trace.block_count - 1 && (
+            <p className="faint small" style={{ marginTop: '0.5rem' }}>
+              This is the last block, so the output state concatenated <span className="mono">{trace.digest}</span> is the digest.
+            </p>
+          )}
+        </>
+      )}
+    </Panel>
+  );
+}
+
+/** The length extension attack on H(secret ‖ message). */
+function LengthExtensionPanel({ ready }: { ready: boolean }) {
+  const [secret, setSecret] = useState('super-secret-key');
+  const [message, setMessage] = useState('user=alice&role=user');
+  const [suffix, setSuffix] = useState('&role=admin');
+  const [guess, setGuess] = useState(16);
+  const known = ready ? attempt(() => wasm.HashInternals.naive_keyed_hash(new TextEncoder().encode(secret), new TextEncoder().encode(message))) : null;
+  const att = ready && known?.ok ? attempt(() => wasm.HashInternals.length_extension(
+    known.value, guess, new TextEncoder().encode(message), new TextEncoder().encode(suffix), new TextEncoder().encode(secret),
+  ) as LengthExtension) : null;
+  const a = att?.ok ? att.value : null;
+
+  return (
+    <Panel title="Length extension: why H(key ‖ message) is not a MAC" refs={['Merkle–Damgård']}>
+      <p className="muted small">
+        {'A SHA-256 digest is not a summary of the message — it '}<em>is</em>
+        {' the algorithm’s internal state when it ran out of input. Anyone holding a digest can load that state back in and keep hashing. So given only H(secret ‖ message) and the length of the secret, an attacker can append data and produce a valid digest for the extended message, without ever learning the secret.'}
+      </p>
+      <div className="grid-3">
+        <Field label="Secret (server only)">{(id) => <TextInput id={id} mono value={secret} onChange={(e) => { setSecret(e.target.value); setGuess(e.target.value.length); }} disabled={!ready} />}</Field>
+        <Field label="Message (public)">{(id) => <TextInput id={id} mono value={message} onChange={(e) => setMessage(e.target.value)} disabled={!ready} />}</Field>
+        <Field label="Appended by attacker">{(id) => <TextInput id={id} mono value={suffix} onChange={(e) => setSuffix(e.target.value)} disabled={!ready} />}</Field>
+      </div>
+      <div style={{ marginTop: '0.75rem' }}>
+        <Range label="Attacker's guess at the secret length" min={0} max={64} value={guess} onChange={setGuess} disabled={!ready}
+          format={(v) => `${v} bytes${v === secret.length ? ' — correct' : ''}`} />
+      </div>
+      <ErrorText error={att && !att.ok ? att.error : null} />
+      {a && (
+        <>
+          <hr className="divider" />
+          <div className="stack">
+            <Output label="What the attacker starts with: H(secret ‖ message)" value={a.original_digest} copy={false} />
+            <Output label="The same 32 bytes read back as SHA-256's eight state words" value={a.recovered_state.join(' ')} copy={false} />
+            <Output label="Glue padding the attacker must insert (the original message's padding)" value={a.glue_padding_hex} copy={false} scroll />
+            <Output label="Forged digest for message ‖ padding ‖ suffix" value={a.forged_digest} tone={a.attack_succeeded ? 'danger' : undefined} copy={false} />
+            <Output label="What the secret holder actually computes for that same input" value={a.genuine_digest} copy={false} />
+          </div>
+          <div style={{ marginTop: '1rem' }}>
+            {a.attack_succeeded
+              ? <Callout tone="danger">Forged. The two digests match, so the server accepts a message the attacker extended — including the appended <span className="mono">{suffix}</span> — without knowing the secret.</Callout>
+              : <Callout tone="ok">The guessed secret length is wrong, so the glue padding is wrong and the forgery fails. An attacker simply tries every plausible length until one works.</Callout>}
+          </div>
+        </>
+      )}
+      <Note title="The fix">
+        Use HMAC. Its outer hash means the tag you publish is not the internal state of the message hash, so there is nothing to
+        resume — the panel above uses the same secret and message and cannot be extended. SHA-3 and BLAKE2 are also immune by
+        construction, being sponges rather than Merkle–Damgård.
+      </Note>
+    </Panel>
   );
 }
 
@@ -174,6 +338,10 @@ export default function HashingPage() {
           </Note>
         </Panel>
       </div>
+
+      <Sha256InternalsPanel ready={ready} />
+
+      <LengthExtensionPanel ready={ready} />
 
       <Note title="Not the same “hashing”">
         This section is about <em>cryptographic</em> hash functions, where the design goals are preimage and collision resistance. The other

@@ -30,8 +30,9 @@ export default function PasswordsPage() {
   const [iterations, setIterations] = useState(600_000);
   const [mKib, setMKib] = useState(19 * 1024);
   const [tCost, setTCost] = useState(2);
+  const [logN, setLogN] = useState(14);
   const [salt] = useState(() => randomHex(16));
-  const [kdf, setKdf] = useState<{ pbkdf2: string; pbkdf2Ms: number; argon: string; argonMs: number; shaUs: number } | null>(null);
+  const [kdf, setKdf] = useState<{ pbkdf2: string; pbkdf2Ms: number; scrypt: string; scryptMs: number; argon: string; argonMs: number; shaUs: number } | null>(null);
   const [kdfBusy, setKdfBusy] = useState(false);
   const [kdfError, setKdfError] = useState<string | null>(null);
 
@@ -47,9 +48,12 @@ export default function PasswordsPage() {
         const pbkdf2 = P.pbkdf2_sha256(pw, s, iterations, 32);
         const pbkdf2Ms = performance.now() - t1;
         const t2 = performance.now();
+        const scrypt = P.scrypt(pw, s, logN, 8, 1);
+        const scryptMs = performance.now() - t2;
+        const t3 = performance.now();
         const argon = P.argon2id(pw, s, mKib, tCost, 1);
-        const argonMs = performance.now() - t2;
-        return { pbkdf2, pbkdf2Ms, argon, argonMs, shaUs };
+        const argonMs = performance.now() - t3;
+        return { pbkdf2, pbkdf2Ms, scrypt, scryptMs, argon, argonMs, shaUs };
       });
       if (r.ok) setKdf(r.value); else setKdfError(r.error);
       setKdfBusy(false);
@@ -57,7 +61,7 @@ export default function PasswordsPage() {
   };
 
   return (
-    <Page kicker="§5 · Password security" title="Password strength and key derivation"
+    <Page kicker="§6 · Password security" title="Password strength and key derivation"
       lede="A password's strength is the number of guesses an attacker needs, not its appearance. Two things decide that number: how the password was chosen, and how expensive the defender made each guess.">
       <Status state={state} />
 
@@ -96,13 +100,13 @@ export default function PasswordsPage() {
         </Note>
       </Panel>
 
-      <Panel title="Key derivation cost" refs={['RFC 8018', 'RFC 9106', 'OWASP']}
+      <Panel title="Key derivation cost" refs={['RFC 8018', 'RFC 7914', 'RFC 9106', 'OWASP']}
         action={<Button variant="primary" onClick={runKdf} disabled={!ready || kdfBusy}>{kdfBusy ? 'Deriving…' : 'Derive keys and time them'}</Button>}>
         <p className="muted small">
-          A password hash should be slow for the attacker and tolerable for the defender. PBKDF2 iterates HMAC; Argon2id additionally
-          fills memory, so GPU and ASIC attackers lose their parallelism advantage. Defaults are the OWASP 2023 minimums; the salt is random per page load.
+          A password hash should be slow for the attacker and tolerable for the defender. PBKDF2 iterates HMAC; scrypt and Argon2id
+          additionally fill memory, so GPU and ASIC attackers lose their parallelism advantage. Defaults are the OWASP 2023 minimums; the salt is random per page load.
         </p>
-        <div className="grid-3">
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
           <Field label="PBKDF2-HMAC-SHA256 iterations">{(id) => (
             <Select id={id} value={iterations} onChange={(e) => setIterations(Number(e.target.value))} disabled={kdfBusy}>
               {[1000, 10_000, 100_000, 600_000, 1_300_000].map((n) => <option key={n} value={n}>{n.toLocaleString()}</option>)}
@@ -118,24 +122,33 @@ export default function PasswordsPage() {
               {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
             </Select>
           )}</Field>
+          <Field label="scrypt cost N = 2^n" hint={`${(128 * 8 * 2 ** logN) / 1024 / 1024} MiB`}>{(id) => (
+            <Select id={id} value={logN} onChange={(e) => setLogN(Number(e.target.value))} disabled={kdfBusy}>
+              {[10, 12, 14, 15, 16].map((n) => <option key={n} value={n}>2^{n}</option>)}
+            </Select>
+          )}</Field>
         </div>
         <ErrorText error={kdfError} />
         {kdf && (
           <>
             <hr className="divider" />
-            <div className="grid-3">
+            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
               <Stat label="One SHA-256" value={`${kdf.shaUs.toFixed(2)} µs`} sub={`≈ ${(1e6 / kdf.shaUs).toExponential(1)} guesses/s on this device`} />
               <Stat label={`PBKDF2 · ${iterations.toLocaleString()} it.`} value={formatMs(kdf.pbkdf2Ms)} sub={`≈ ${(1000 / kdf.pbkdf2Ms).toFixed(1)} guesses/s`} tone="warn" />
+              <Stat label={`scrypt · N = 2^${logN}, r = 8`} value={formatMs(kdf.scryptMs)} sub={`≈ ${(1000 / kdf.scryptMs).toFixed(1)} guesses/s`} tone="info" />
               <Stat label={`Argon2id · ${mKib / 1024} MiB × ${tCost}`} value={formatMs(kdf.argonMs)} sub={`≈ ${(1000 / kdf.argonMs).toFixed(1)} guesses/s`} tone="accent" />
             </div>
             <div className="stack" style={{ marginTop: '1rem' }}>
               <Output label="salt (16 bytes)" value={salt} copy={false} />
               <Output label="PBKDF2-HMAC-SHA256 derived key" value={kdf.pbkdf2} />
+              <Output label="scrypt derived key" value={kdf.scrypt} />
               <Output label="Argon2id tag" value={kdf.argon} />
             </div>
             <p className="muted small" style={{ marginTop: '0.75rem' }}>
-              The same password costs {(kdf.pbkdf2Ms * 1000 / kdf.shaUs).toFixed(0)}× more to check with PBKDF2 and {(kdf.argonMs * 1000 / kdf.shaUs).toFixed(0)}× more with Argon2id
-              than with a bare hash — and the attacker pays the same factor per guess.
+              The same password costs {(kdf.pbkdf2Ms * 1000 / kdf.shaUs).toFixed(0)}× more to check with PBKDF2, {(kdf.scryptMs * 1000 / kdf.shaUs).toFixed(0)}× with scrypt
+              and {(kdf.argonMs * 1000 / kdf.shaUs).toFixed(0)}× with Argon2id than with a bare hash — and the attacker pays the same factor per guess.
+              PBKDF2 buys time with iterations alone, so a GPU with thousands of cores parallelises it almost perfectly; scrypt and Argon2id also
+              demand memory per guess, which is what actually blunts custom hardware.
             </p>
           </>
         )}
