@@ -227,6 +227,88 @@ export default function ClassicalCiphers() {
           <Output label="Step 3 — plaintext under the recovered key" value={broken?.ok ? broken.value : ''} scroll ariaLabel="Recovered plaintext" />
         </div>
       </Panel>
+
+      <EnigmaPanel ready={ready} />
     </Page>
+  );
+}
+
+/* Enigma --------------------------------------------------------------------- */
+
+interface EnigmaResult { output: string; end_positions: string; letters_enciphered: number }
+
+const ROTOR_NAMES = ['I', 'II', 'III', 'IV', 'V'];
+
+function EnigmaPanel({ ready }: { ready: boolean }) {
+  const [rotors, setRotors] = useState<[number, number, number]>([0, 1, 2]);
+  const [positions, setPositions] = useState('AAA');
+  const [rings, setRings] = useState('AAA');
+  const [plugboard, setPlugboard] = useState('AV BS CG DL FU');
+  const [text, setText] = useState('WEATHER REPORT FOR SECTOR SEVEN');
+
+  const res = ready ? attempt(() => {
+    const r = wasm.Enigma.run(new Uint32Array(rotors), positions, rings, plugboard, text) as EnigmaResult;
+    // Running the output back through the same settings must return the input.
+    const back = wasm.Enigma.run(new Uint32Array(rotors), positions, rings, plugboard, r.output) as EnigmaResult;
+    return { ...r, roundtrip: back.output };
+  }) : null;
+  const r = res?.ok ? res.value : null;
+
+  const setRotor = (slot: number, value: number) => {
+    setRotors((prev) => prev.map((v, i) => (i === slot ? value : v)) as [number, number, number]);
+  };
+
+  return (
+    <Panel title="The Enigma machine" refs={['Wehrmacht Enigma I', 'reflector B']}>
+      <p className="muted small">
+        Three rotors chosen from five, each a fixed scrambling of the alphabet that rotates as you type; a reflector that
+        sends the signal back through all three; and a plugboard swapping letter pairs before and after. The wirings below
+        are the historical ones. Because the signal path is symmetric, encryption and decryption are the <em>same</em>{' '}
+        operation — type the ciphertext with the same settings and the plaintext comes back.
+      </p>
+      <div className="grid-3">
+        {(['Left (slow)', 'Middle', 'Right (fast)'] as const).map((label, slot) => (
+          <Field key={label} label={`${label} rotor`}>{(id) => (
+            <Select id={id} value={rotors[slot]} onChange={(e) => setRotor(slot, Number(e.target.value))} disabled={!ready}>
+              {ROTOR_NAMES.map((name, i) => <option key={name} value={i}>Rotor {name}</option>)}
+            </Select>
+          )}</Field>
+        ))}
+      </div>
+      <div className="grid-3">
+        <Field label="Rotor positions" hint="the day key, three letters">{(id) => (
+          <TextInput id={id} mono value={positions} onChange={(e) => setPositions(e.target.value.toUpperCase())} maxLength={3} disabled={!ready} />
+        )}</Field>
+        <Field label="Ring settings" hint="offsets the wiring inside each rotor">{(id) => (
+          <TextInput id={id} mono value={rings} onChange={(e) => setRings(e.target.value.toUpperCase())} maxLength={3} disabled={!ready} />
+        )}</Field>
+        <Field label="Plugboard pairs" hint="space-separated, e.g. AV BS">{(id) => (
+          <TextInput id={id} mono value={plugboard} onChange={(e) => setPlugboard(e.target.value.toUpperCase())} disabled={!ready} />
+        )}</Field>
+      </div>
+      <Field label="Message">{(id) => (
+        <TextArea id={id} mono rows={2} value={text} onChange={(e) => setText(e.target.value)} disabled={!ready} />
+      )}</Field>
+      <ErrorText error={res && !res.ok ? res.error : null} />
+      {r && (
+        <>
+          <div className="stack">
+            <Output label="Enciphered" value={r.output} tone="accent" ariaLabel="Enigma output" />
+            <Output label="The output run back through the same settings" value={r.roundtrip} copy={false} ariaLabel="Enigma roundtrip" />
+          </div>
+          <div className="grid-2" style={{ marginTop: '0.75rem' }}>
+            <Stat label="Rotor windows after" value={r.end_positions} sub={`advanced by ${r.letters_enciphered} keystrokes`} />
+            <Stat label="Settings space" value="~1.07 × 10²³" sub="rotor order × positions × rings × 10 plug pairs" />
+          </div>
+        </>
+      )}
+      <Note title="Strong machine, broken procedure">
+        Notice that no letter ever encrypts to itself — the reflector guarantees it. That one property let Bletchley Park
+        slide a guessed plaintext (&quot;WETTERBERICHT&quot;, a weather report) along the ciphertext and discard every position with a
+        letter match, turning an astronomical key space into a bombe-sized search. Enigma fell not to a weakness in the rotor
+        wiring but to predictable messages, reused indicator procedures, and this structural tell — the recurring lesson of
+        this site: operating procedure is part of the cipher.
+      </Note>
+    </Panel>
   );
 }
