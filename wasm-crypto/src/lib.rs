@@ -15,6 +15,7 @@ pub mod asymmetric;
 pub mod password;
 pub mod tls;
 pub mod numbers;
+pub mod randomness;
 pub mod protocols;
 pub mod wireguard;
 

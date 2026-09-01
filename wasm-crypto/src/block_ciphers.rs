@@ -134,6 +134,26 @@ fn gcm_seal(key: &[u8], nonce: &[u8], aad: &[u8], data: &[u8], encrypt: bool) ->
     }
 }
 
+/// ChaCha20-Poly1305 (RFC 8439). Not a block cipher: a stream cipher plus a
+/// one-time authenticator, which is why it needs no padding and no S-box
+/// lookups — the property that makes it constant-time in software on CPUs
+/// without AES instructions.
+pub fn chacha20poly1305(key: &[u8], nonce: &[u8], aad: &[u8], data: &[u8], encrypt: bool) -> Result<Vec<u8>> {
+    use chacha20poly1305::aead::{Aead, KeyInit, Payload};
+    let key: [u8; 32] = key.try_into().map_err(|_| CryptoError::new(format!("Key must be 32 bytes (got {})", key.len())))?;
+    if nonce.len() != 12 {
+        return Err(CryptoError::new(format!("Nonce must be 12 bytes (got {})", nonce.len())));
+    }
+    let cipher = chacha20poly1305::ChaCha20Poly1305::new((&key).into());
+    let n = chacha20poly1305::Nonce::from_slice(nonce);
+    let payload = Payload { msg: data, aad };
+    if encrypt {
+        cipher.encrypt(n, payload).map_err(|_| CryptoError::new("Encryption failed"))
+    } else {
+        cipher.decrypt(n, payload).map_err(|_| CryptoError::new("Authentication failed: ciphertext, tag, key, nonce or AAD does not match"))
+    }
+}
+
 #[wasm_bindgen]
 pub struct BlockCiphers;
 
@@ -172,6 +192,16 @@ impl BlockCiphers {
     /// ECB/CBC require a multiple of 16 bytes.
     pub fn aes_encrypt_bytes(mode: &str, key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>> {
         aes_mode_raw(mode, key, iv, data, true)
+    }
+
+    /// ChaCha20-Poly1305 seal. Returns ciphertext ‖ 16-byte tag.
+    pub fn chacha20_encrypt(key_hex: &str, nonce_hex: &str, aad_hex: &str, data_hex: &str) -> Result<String> {
+        Ok(hex::encode(chacha20poly1305(&hex::decode(key_hex)?, &hex::decode(nonce_hex)?, &hex::decode(aad_hex)?, &hex::decode(data_hex)?, true)?))
+    }
+
+    /// ChaCha20-Poly1305 open; input is ciphertext ‖ tag.
+    pub fn chacha20_decrypt(key_hex: &str, nonce_hex: &str, aad_hex: &str, data_hex: &str) -> Result<String> {
+        Ok(hex::encode(chacha20poly1305(&hex::decode(key_hex)?, &hex::decode(nonce_hex)?, &hex::decode(aad_hex)?, &hex::decode(data_hex)?, false)?))
     }
 
     /// PKCS#7 padding of a hex string, for display.
@@ -237,6 +267,31 @@ mod tests {
         let ct = BlockCiphers::aes_encrypt("cbc", "000102030405060708090a0b0c0d0e0f", "000102030405060708090a0b0c0d0e0f", "abcdef").unwrap();
         assert_eq!(ct.len(), 32);
         assert_eq!(BlockCiphers::aes_decrypt("cbc", "000102030405060708090a0b0c0d0e0f", "000102030405060708090a0b0c0d0e0f", &ct).unwrap(), "abcdef");
+    }
+
+    #[test]
+    fn chacha20_poly1305_rfc_8439_vector() {
+        // RFC 8439 section 2.8.2.
+        let key = "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f";
+        let nonce = "070000004041424344454647";
+        let aad = "50515253c0c1c2c3c4c5c6c7";
+        let pt = hex::encode(b"Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it.");
+        let expected_ct = "d31a8d34648e60db7b86afbc53ef7ec2a4aded51296e08fea9e2b5a736ee62d63dbea45e8ca9671282fafb69da92728b1a71de0a9e060b2905d6a5b67ecd3b3692ddbd7f2d778b8c9803aee328091b58fab324e4fad675945585808b4831d7bc3ff4def08e4b7a9de576d26586cec64b6116";
+        let expected_tag = "1ae10b594f09e26a7e902ecbd0600691";
+
+        let out = BlockCiphers::chacha20_encrypt(key, nonce, aad, &pt).unwrap();
+        assert_eq!(out, format!("{expected_ct}{expected_tag}"));
+        assert_eq!(BlockCiphers::chacha20_decrypt(key, nonce, aad, &out).unwrap(), pt);
+
+        // Authentication really is checked: flip one bit of the AAD.
+        assert!(BlockCiphers::chacha20_decrypt(key, nonce, "50515253c0c1c2c3c4c5c6c8", &out).is_err());
+        // ...and one bit of the ciphertext.
+        let mut tampered = out.clone();
+        tampered.replace_range(0..1, "e");
+        assert!(BlockCiphers::chacha20_decrypt(key, nonce, aad, &tampered).is_err());
+        // Wrong key and nonce sizes are rejected rather than truncated.
+        assert!(BlockCiphers::chacha20_encrypt("0011", nonce, "", "00").is_err());
+        assert!(BlockCiphers::chacha20_encrypt(key, "0011", "", "00").is_err());
     }
 
     #[test]
