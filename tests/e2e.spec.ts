@@ -113,12 +113,42 @@ test('public key: RSA round trip, signature, DH and X25519 agreement', async ({ 
 test('passwords: common-password rank and KDF timing', async ({ page }) => {
   test.slow();
   await open(page, '/passwords/');
-  await field(page, 'Password').fill('123456');
+  await page.locator('section', { hasText: 'Guessing-resistance model' }).getByLabel(/Password/).fill('123456');
   await expect(page.getByText('#1', { exact: true })).toBeVisible();
   await field(page, /PBKDF2-HMAC-SHA256 iterations/).selectOption('1000');
   await field(page, /Argon2id memory/).selectOption('1024');
   await page.getByRole('button', { name: 'Derive keys and time them' }).click();
   await expect(page.getByText('Argon2id tag')).toBeVisible({ timeout: 60_000 });
+
+  // Dictionary attack: a fast hash cracks a listed password, and Argon2id
+  // finds the same word far more slowly per guess.
+  const dict = page.locator('section', { hasText: 'Dictionary attack' });
+  await dict.getByRole('button', { name: 'Run the attack' }).click();
+  await expect(dict.getByText('cracked')).toBeVisible({ timeout: 30_000 });
+  await expect(dict.getByText('found at rank #10')).toBeVisible();
+  await dict.getByLabel('Stored hash').selectOption('argon2');
+  await dict.getByRole('button', { name: 'Run the attack' }).click();
+  await expect(dict.getByText('cracked')).toBeVisible({ timeout: 30_000 });
+  await expect(dict.getByText('48 candidates hashed')).toBeVisible();
+});
+
+test('attacks: padding oracle recovers plaintext and DH MITM gives Mallory both keys', async ({ page }) => {
+  test.slow();
+  await open(page, '/attacks/');
+
+  // Padding oracle: the recovered plaintext matches the secret message, with
+  // no key used by the attack.
+  const oracle = page.locator('section', { hasText: 'padding-oracle' });
+  await oracle.getByRole('button', { name: 'Run the attack' }).click();
+  await expect(oracle.getByText('plaintext recovered')).toBeVisible({ timeout: 30_000 });
+  await expect(oracle.locator('.out.tone-danger')).toContainText('transfer approved');
+  await expect(oracle.getByText('reconstructed')).toBeVisible();
+
+  // DH MITM: Mallory shares a key with each victim; the victims share none.
+  const mitm = page.locator('section', { hasText: 'Man-in-the-middle' });
+  await expect(mitm.getByText('Alice ↔ Mallory').locator('..').locator('.stat-value')).toHaveText('shared key');
+  await expect(mitm.getByText('Bob ↔ Mallory').locator('..').locator('.stat-value')).toHaveText('shared key');
+  await expect(mitm.getByText('Alice ↔ Bob', { exact: true }).locator('..').locator('.stat-value')).toHaveText('no shared key');
 });
 
 test('tls: full handshake and record protection', async ({ page }) => {

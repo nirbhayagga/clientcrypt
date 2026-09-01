@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: '§11 Benchmark',
+  title: '§12 Benchmark',
   description: 'The same chained SHA-256 workload in Rust/WebAssembly, JavaScript and WebCrypto.',
   alternates: { canonical: '/benchmark/' },
 };

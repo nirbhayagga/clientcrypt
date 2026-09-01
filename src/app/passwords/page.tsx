@@ -153,6 +153,104 @@ export default function PasswordsPage() {
           </>
         )}
       </Panel>
+
+      <DictionaryAttackPanel ready={ready} />
     </Page>
+  );
+}
+
+/* --------------------------------------------------------------------------
+   Dictionary attack: run the embedded top-1000 list against a leaked hash,
+   timing it, so the cost of the hash function is felt directly. A fast hash
+   clears the list in milliseconds; a memory-hard one takes seconds.
+   ---------------------------------------------------------------------- */
+interface DictResult { readonly found_rank: number; readonly tried: number; readonly list_size: number }
+
+const ATTACK_HASHES: { id: string; label: string; cost: number; costLabel: string; kind: 'fast' | 'slow'; cap: number }[] = [
+  { id: 'md5', label: 'MD5 (salted)', cost: 0, costLabel: '1 pass', kind: 'fast', cap: 1000 },
+  { id: 'sha1', label: 'SHA-1 (salted)', cost: 0, costLabel: '1 pass', kind: 'fast', cap: 1000 },
+  { id: 'sha256', label: 'SHA-256 (salted)', cost: 0, costLabel: '1 pass', kind: 'fast', cap: 1000 },
+  { id: 'pbkdf2', label: 'PBKDF2-HMAC-SHA256', cost: 100_000, costLabel: '100k iterations', kind: 'slow', cap: 200 },
+  { id: 'argon2', label: 'Argon2id', cost: 19 * 1024, costLabel: '19 MiB, 1 pass', kind: 'slow', cap: 48 },
+];
+
+const TARGETS = ['123456', 'password', 'qwerty', 'letmein', 'dragon', 'correct-horse-battery-staple'];
+
+function DictionaryAttackPanel({ ready }: { ready: boolean }) {
+  const [alg, setAlg] = useState('sha256');
+  const [target, setTarget] = useState('dragon');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ rank: number; tried: number; ms: number; alg: string; label: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const info = ATTACK_HASHES.find((h) => h.id === alg)!;
+  const salt = '636c69656e746372797074'; // "clientcrypt", fixed so the demo is reproducible
+
+  const run = () => {
+    setBusy(true); setError(null); setResult(null);
+    setTimeout(() => {
+      const r = attempt(() => {
+        const s = hexToBytes(salt);
+        const t0 = performance.now();
+        const res = wasm.PasswordSecurity.dictionary_attack(alg, info.cost, s, target, info.cap) as DictResult;
+        return { res, ms: performance.now() - t0 };
+      });
+      if (r.ok) setResult({ rank: r.value.res.found_rank, tried: r.value.res.tried, ms: r.value.ms, alg, label: info.label });
+      else setError(r.error);
+      setBusy(false);
+    }, 30);
+  };
+
+  const rate = result && result.ms > 0 ? (result.tried / (result.ms / 1000)) : 0;
+  const projFull = rate > 0 ? formatDuration(14_000_000 / rate) : '—'; // rockyou-sized list
+
+  return (
+    <Panel title="Dictionary attack" refs={['top-1000 list', 'guess rate']}
+      action={<Button variant="primary" onClick={run} disabled={!ready || busy}>{busy ? 'Cracking…' : 'Run the attack'}</Button>}>
+      <p className="muted small">
+        An attacker with a leaked password database does not brute-force the character space — they try a list of likely
+        passwords, hashing each candidate the same way the site did and comparing. The only thing standing between the list and
+        a match is how long one hash takes. Here the embedded top-1000 list is run against a hash of the chosen password.
+      </p>
+      <div className="grid-3">
+        <Field label="Stored hash">{(id) => (
+          <Select id={id} value={alg} onChange={(e) => { setAlg(e.target.value); setResult(null); }} disabled={!ready || busy}>
+            {ATTACK_HASHES.map((h) => <option key={h.id} value={h.id}>{h.label} — {h.costLabel}</option>)}
+          </Select>
+        )}</Field>
+        <Field label="The user's password">{(id) => (
+          <Select id={id} value={target} onChange={(e) => { setTarget(e.target.value); setResult(null); }} disabled={!ready || busy}>
+            {TARGETS.map((t) => <option key={t} value={t}>{t}</option>)}
+          </Select>
+        )}</Field>
+        <div style={{ alignSelf: 'end' }}>
+          <span className="tag">{info.kind === 'fast' ? 'fast hash — wrong for passwords' : 'memory-hard — built for passwords'}</span>
+        </div>
+      </div>
+      <ErrorText error={error} />
+      {result && (
+        <>
+          <hr className="divider" />
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
+            <Stat label="Outcome" value={result.rank > 0 ? `cracked` : 'not found'} tone={result.rank > 0 ? 'danger' : 'ok'}
+              sub={result.rank > 0 ? `found at rank #${result.rank}` : `absent from the ${result.tried} tried`} />
+            <Stat label="Time to search" value={formatMs(result.ms)} sub={`${result.tried.toLocaleString()} candidates hashed`} />
+            <Stat label="Guess rate" value={rate > 0 ? `${rate < 1000 ? rate.toFixed(0) : rate < 1e6 ? `${(rate / 1e3).toFixed(0)}k` : `${(rate / 1e6).toFixed(1)}M`}/s` : '—'} tone={rate > 1e6 ? 'danger' : 'accent'} sub="hashes per second, one CPU core" />
+            <Stat label="A 14M-word list would take" value={projFull} sub="at this rate, one core" />
+          </div>
+          <p className="muted small" style={{ marginTop: '0.75rem' }}>
+            {info.kind === 'fast'
+              ? `A salted ${result.label.split(' ')[0]} does nothing to slow this down — salting only stops one precomputed table from covering every site at once; it does not make a single guess cost more. At this rate the full 14-million-word rockyou list falls in ${projFull}.`
+              : `The password is still in the list, so it is still found — but every guess now costs real time, so the same list takes ${projFull} instead of a fraction of a second. That is the entire purpose of a password hash: not to hide a weak password, but to make the attacker pay per attempt.`}
+          </p>
+        </>
+      )}
+      <Note title="Salting versus slowing">
+        These are different jobs and both are needed. A salt (unique per user) stops an attacker precomputing one rainbow table
+        that cracks every database at once, and stops identical passwords sharing a hash — but a salted MD5 is still a fast MD5,
+        so it does nothing against the per-target list search above. Making each guess expensive is the separate job of PBKDF2,
+        scrypt and Argon2id. A password not in the list (try the last option) survives regardless, which is the real defence:
+        don&apos;t pick a password an attacker&apos;s list already contains.
+      </Note>
+    </Panel>
   );
 }

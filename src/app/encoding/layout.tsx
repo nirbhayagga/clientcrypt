@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: '§10 Encodings',
+  title: '§11 Encodings',
   description: 'Base64, Base64url, hex, percent and binary encodings with a code-point and UTF-8 byte view.',
   alternates: { canonical: '/encoding/' },
 };

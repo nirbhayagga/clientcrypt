@@ -10,6 +10,7 @@ export const SECTIONS = [
   { href: '/passwords/', num: '§7', label: 'Password security' },
   { href: '/tls/', num: '§8', label: 'TLS 1.3 handshake' },
   { href: '/protocols/', num: '§9', label: 'Applied protocols' },
-  { href: '/encoding/', num: '§10', label: 'Encodings' },
-  { href: '/benchmark/', num: '§11', label: 'WASM vs JS benchmark' },
+  { href: '/attacks/', num: '§10', label: 'Attacks' },
+  { href: '/encoding/', num: '§11', label: 'Encodings' },
+  { href: '/benchmark/', num: '§12', label: 'WASM vs JS benchmark' },
 ] as const;
