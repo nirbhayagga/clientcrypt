@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // wasm-pack output: generated on every build and git-ignored, so it is
+    // absent locally but present in CI. Never our code to fix.
+    "public/pkg/**",
   ]),
 ]);
 
