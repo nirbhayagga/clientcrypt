@@ -11,6 +11,7 @@ pub mod classical;
 pub mod hashing;
 pub mod hash_internals;
 pub mod block_ciphers;
+pub mod aes_rounds;
 pub mod asymmetric;
 pub mod password;
 pub mod tls;

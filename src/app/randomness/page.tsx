@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useWasm, wasm, attempt } from '@/lib/wasm';
 import { bytesToHex } from '@/lib/bytes';
-import { Page, Panel, Note, Field, Select, Segmented, Output, Stat, Status, ErrorText, Button, Tag } from '@/components/ui';
+import { Page, Panel, Note, Field, Select, Segmented, Output, Stat, Status, ErrorText, Button } from '@/components/ui';
 
 interface Analysis {
   bytes: number; bits: number; ones_fraction: number; monobit_p: number; runs_p: number;

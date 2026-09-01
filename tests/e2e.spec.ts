@@ -49,6 +49,36 @@ test('block ciphers: FIPS-197 vector, duplicate-block detection, GCM tamper dete
   await expect(page.locator('p[role="alert"]')).toContainText('Authentication failed');
 });
 
+test('block ciphers: reduced-round avalanche and keystream reuse', async ({ page }) => {
+  await open(page, '/block-ciphers/');
+
+  // Avalanche rises from near-zero at one round to ~50% by ten, without the
+  // key changing under the fixed-key comparison.
+  const rounds = page.locator('section', { hasText: 'What the rounds are for' });
+  const avalanche = rounds.getByText('Avalanche at this round count').locator('..').locator('.stat-value');
+  const keyLabel = rounds.locator('.cap').last();
+  // The caption carries both the round count and the key; only the key must
+  // stay fixed while scrubbing, so compare that part alone.
+  const keyOf = async () => (await keyLabel.innerText()).replace(/^.*· /, '');
+  const keyAt1 = await keyOf();
+  const av1 = parseFloat((await avalanche.innerText()).replace('%', ''));
+  expect(av1).toBeLessThan(20);
+
+  const slider = rounds.getByRole('slider');
+  await slider.focus();
+  for (let i = 0; i < 9; i++) await slider.press('ArrowRight');
+  await expect(avalanche).not.toHaveText(`${av1}%`);
+  const av10 = parseFloat((await avalanche.innerText()).replace('%', ''));
+  expect(av10).toBeGreaterThan(45);
+  expect(av10).toBeLessThan(55);
+  expect(await keyOf()).toBe(keyAt1); // same key throughout the scrub
+
+  // XOR-ing two ciphertexts under a reused (key, nonce) recovers the XOR of
+  // the two plaintexts — a canvas that isn't just noise.
+  const keystream = page.locator('section', { hasText: 'Reusing a key and nonce' });
+  await expect(keystream.locator('canvas')).toHaveCount(5);
+});
+
 test('hashing: digests, HMAC and avalanche', async ({ page }) => {
   await open(page, '/hashing/');
   await field(page, 'Message').first().fill('abc');
