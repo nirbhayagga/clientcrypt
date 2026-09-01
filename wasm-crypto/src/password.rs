@@ -10,6 +10,10 @@ use wasm_bindgen::prelude::*;
 /// SecLists (MIT). One per line, most common first.
 const TOP_1000: &str = include_str!("../data/top-1000-passwords.txt");
 
+/// The EFF long diceware list: 7,776 words (5 dice rolls each), chosen to be
+/// easy to type and free of confusable pairs (CC BY 3.0 US).
+const EFF_WORDLIST: &str = include_str!("../data/eff-wordlist.txt");
+
 #[wasm_bindgen]
 pub struct PasswordSecurity;
 
@@ -74,6 +78,26 @@ impl PasswordSecurity {
             .hash_password_into(password.as_bytes(), salt, &mut out)
             .map_err(|e| CryptoError::new(format!("Argon2: {e}")))?;
         Ok(hex::encode(out))
+    }
+
+    /// Generates a diceware passphrase of `words` words, each chosen uniformly
+    /// at random from the 7,776-word EFF list using the OS CSPRNG. Every word
+    /// contributes exactly log₂(7776) ≈ 12.925 bits, so the entropy is honest
+    /// and countable — unlike a "complex" password whose entropy is guessed.
+    pub fn diceware(words: u32, separator: &str) -> Result<String> {
+        use rand::Rng;
+        if !(1..=20).contains(&words) {
+            return Err(CryptoError::new("Choose 1–20 words"));
+        }
+        let list: Vec<&str> = EFF_WORDLIST.lines().collect();
+        let mut rng = rand::rngs::OsRng;
+        let chosen: Vec<&str> = (0..words).map(|_| list[rng.gen_range(0..list.len())]).collect();
+        Ok(chosen.join(separator))
+    }
+
+    /// Bits of entropy in a `words`-word diceware passphrase: words · log₂(7776).
+    pub fn diceware_entropy(words: u32) -> f64 {
+        words as f64 * (7776f64).log2()
     }
 
     /// Chains `iterations` SHA-256 computations (each input is the previous
@@ -175,6 +199,20 @@ mod tests {
         assert_eq!(PasswordSecurity::alphabet_size("aA1!"), Some(95));
         assert!(PasswordSecurity::crack_time(40.0, 1e10, false) < PasswordSecurity::crack_time(41.0, 1e10, false));
         assert!(PasswordSecurity::crack_time(64.0, 1.0, true) < PasswordSecurity::crack_time(64.0, 1.0, false));
+    }
+
+    #[test]
+    fn diceware_wordlist_and_generation() {
+        assert_eq!(EFF_WORDLIST.lines().count(), 7776);
+        // Six words is the classic recommendation: ~77.5 bits.
+        assert!((PasswordSecurity::diceware_entropy(6) - 77.5).abs() < 0.1);
+        let phrase = PasswordSecurity::diceware(6, "-").unwrap();
+        assert_eq!(phrase.split('-').count(), 6);
+        // Every word must come from the list.
+        let list: std::collections::HashSet<&str> = EFF_WORDLIST.lines().collect();
+        assert!(phrase.split('-').all(|w| list.contains(w)));
+        assert!(PasswordSecurity::diceware(0, "-").is_err());
+        assert!(PasswordSecurity::diceware(21, "-").is_err());
     }
 
     #[test]

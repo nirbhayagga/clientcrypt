@@ -205,6 +205,23 @@ impl Randomness {
     pub fn extract(bytes: &[u8]) -> Result<JsValue> {
         to_js(&extract_and_condition(bytes)?)
     }
+
+    /// A cryptographic stream generator: ChaCha20 keyed by a 32-byte seed,
+    /// producing `len` bytes. This is the step every OS RNG performs after
+    /// gathering a little real entropy — it stretches the seed into an
+    /// unlimited stream that no statistical test can distinguish from random,
+    /// yet is fully determined by the seed. `nonce_counter` selects an
+    /// independent stream from the same seed (the low 8 bytes of the nonce).
+    pub fn csprng_stream(seed_hex: &str, nonce_counter: u64, len: u32) -> Result<String> {
+        use chacha20::cipher::{KeyIvInit, StreamCipher};
+        let seed: [u8; 32] = hex::decode(seed_hex)?.try_into().map_err(|_| CryptoError::new("Seed must be 32 bytes"))?;
+        let mut nonce = [0u8; 12];
+        nonce[4..].copy_from_slice(&nonce_counter.to_le_bytes());
+        let mut cipher = chacha20::ChaCha20::new(&seed.into(), &nonce.into());
+        let mut out = vec![0u8; len.min(1 << 20) as usize];
+        cipher.apply_keystream(&mut out);
+        Ok(hex::encode(out))
+    }
 }
 
 fn to_js<T: Serialize>(v: &T) -> Result<JsValue> {
@@ -307,6 +324,26 @@ mod tests {
         let repeat = seq.windows(64).skip(1).position(|w| w == first);
         assert!(repeat.is_some(), "a modulus of 2048 must cycle within 5000 draws");
         assert!(repeat.unwrap() < 2048);
+    }
+
+    #[test]
+    fn csprng_stream_is_deterministic_and_statistically_clean() {
+        let seed = "00".repeat(32);
+        // Same seed and nonce → identical stream.
+        let a = Randomness::csprng_stream(&seed, 0, 128).unwrap();
+        let b = Randomness::csprng_stream(&seed, 0, 128).unwrap();
+        assert_eq!(a, b);
+        // Different nonce → different stream.
+        assert_ne!(a, Randomness::csprng_stream(&seed, 1, 128).unwrap());
+        // One bit of seed change → completely different stream.
+        let mut seed2 = vec![0u8; 32]; seed2[0] = 1;
+        assert_ne!(a, Randomness::csprng_stream(&hex::encode(seed2), 0, 128).unwrap());
+        // The output passes the statistical battery.
+        let stream = hex::decode(Randomness::csprng_stream(&seed, 0, 8192).unwrap()).unwrap();
+        let stats = analyse(&stream).unwrap();
+        assert!(stats.monobit_p > 0.01 && stats.runs_p > 0.01);
+        assert!(stats.shannon_bits_per_byte > 7.9);
+        assert!(Randomness::csprng_stream("00", 0, 16).is_err());
     }
 
     #[test]
