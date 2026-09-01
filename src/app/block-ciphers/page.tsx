@@ -164,8 +164,71 @@ export default function BlockCiphersPage() {
         </Panel>
       </div>
 
+      <ChaChaPanel ready={ready} />
+
       <EcbImageDemo ready={ready} />
     </Page>
+  );
+}
+
+function ChaChaPanel({ ready }: { ready: boolean }) {
+  const RFC_KEY = '808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f';
+  const RFC_NONCE = '070000004041424344454647';
+  const RFC_AAD = '50515253c0c1c2c3c4c5c6c7';
+  const [key, setKey] = useState(RFC_KEY);
+  const [nonce, setNonce] = useState(RFC_NONCE);
+  const [aad, setAad] = useState(RFC_AAD);
+  const [text, setText] = useState("Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it.");
+  const [dir, setDir] = useState<Dir>('encrypt');
+  const [ct, setCt] = useState('');
+
+  const input = dir === 'encrypt' ? textToHex(text) : ct.replace(/\s+/g, '');
+  const out = ready && isHex(input) && isHex(key) && isHex(nonce) && isHex(aad)
+    ? attempt(() => (dir === 'encrypt'
+        ? wasm.BlockCiphers.chacha20_encrypt(key, nonce, aad, input)
+        : wasm.BlockCiphers.chacha20_decrypt(key, nonce, aad, input)))
+    : null;
+  const value = out?.ok ? out.value : '';
+  const asText = dir === 'decrypt' && value ? attempt(() => hexToText(value)) : null;
+
+  return (
+    <Panel title="ChaCha20-Poly1305" refs={['RFC 8439']}
+      action={<Segmented label="Direction" value={dir} onChange={setDir} disabled={!ready}
+        options={[{ value: 'encrypt', label: 'Seal' }, { value: 'decrypt', label: 'Open' }]} />}>
+      <p className="muted small">
+        Not a block cipher at all: ChaCha20 is a stream cipher, and Poly1305 is a one-time authenticator. Together they form
+        the AEAD that TLS and WireGuard use where AES hardware is absent. Because it is built from additions, XORs and
+        rotations on 32-bit words rather than table lookups, a straightforward software implementation is already constant-time
+        — which is exactly the property AES in software struggles to guarantee.
+      </p>
+      <div className="grid-2">
+        <div className="stack">
+          <Field label="Key" hint="32 bytes">{(id) => <TextInput id={id} mono value={key} onChange={(e) => setKey(e.target.value.trim())} invalid={!isHex(key) || key.length !== 64} disabled={!ready} />}</Field>
+          <Field label="Nonce" hint="12 bytes, never reused under one key">{(id) => <TextInput id={id} mono value={nonce} onChange={(e) => setNonce(e.target.value.trim())} invalid={!isHex(nonce) || nonce.length !== 24} disabled={!ready} />}</Field>
+          <Field label="Associated data" hint="authenticated, not encrypted">{(id) => <TextInput id={id} mono value={aad} onChange={(e) => setAad(e.target.value.trim())} invalid={!isHex(aad)} disabled={!ready} />}</Field>
+        </div>
+        <Field label={dir === 'encrypt' ? 'Plaintext' : 'Ciphertext ‖ tag (hex)'}>
+          {(id) => dir === 'encrypt'
+            ? <TextArea id={id} rows={6} value={text} onChange={(e) => setText(e.target.value)} disabled={!ready} />
+            : <TextArea id={id} mono rows={6} value={ct} onChange={(e) => setCt(e.target.value)} invalid={!isHex(ct.replace(/\s+/g, ''))} disabled={!ready} />}
+        </Field>
+      </div>
+      <hr className="divider" />
+      <Output label={dir === 'encrypt' ? 'Ciphertext ‖ 16-byte tag' : 'Plaintext (hex)'} value={value} ariaLabel="ChaCha20 output" scroll />
+      <ErrorText error={out && !out.ok ? out.error : null} />
+      {asText?.ok && <div style={{ marginTop: '0.75rem' }}><Output label="Plaintext (UTF-8)" value={asText.value} /></div>}
+      {dir === 'encrypt' && value && (
+        <div className="row" style={{ marginTop: '0.75rem' }}>
+          <Button size="sm" onClick={() => { setCt(value); setDir('decrypt'); }}>Open this ciphertext</Button>
+          {key === RFC_KEY && nonce === RFC_NONCE && aad === RFC_AAD && <Tag tone="ok">matches the RFC 8439 §2.8.2 vector</Tag>}
+        </div>
+      )}
+      <Note title="Nonce reuse is fatal here too">
+        A stream cipher XORs a keystream derived from (key, nonce) with the data. Encrypt two different messages under the same
+        pair and their ciphertexts XOR to the XOR of the plaintexts, with the key never entering into it. Poly1305 is worse
+        still under reuse: it is a one-time authenticator, and two tags under one key leak enough to forge others.
+      </Note>
+    </Panel>
   );
 }
 

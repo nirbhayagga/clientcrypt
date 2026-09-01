@@ -142,6 +142,48 @@ test('privacy: states the single outbound request and is reachable from every pa
   expect(headers).toContain("connect-src 'self' https://api.pwnedpasswords.com");
 });
 
+test('randomness: RANDU fails in 3D, the CSPRNG passes the NIST tests', async ({ page }) => {
+  test.slow();
+  await open(page, '/randomness/');
+  // Three plots, defaulting to the 3D view where RANDU's lattice shows.
+  const lattice = page.locator('section', { hasText: 'Seeing the difference' });
+  await expect(lattice.locator('canvas')).toHaveCount(3);
+  await lattice.getByRole('button', { name: '2D pairs' }).click();
+  await expect(lattice.getByText('two dimensions are not enough')).toBeVisible();
+
+  // Neither the CSPRNG nor a plain counter is rejected — that is the lesson.
+  const tests = page.locator('section', { hasText: 'Statistical tests' });
+  await expect(tests.getByText('not rejected').first()).toBeVisible();
+  await tests.getByLabel('Source', { exact: true }).selectOption('counter');
+  await expect(tests.getByText('Monobit p').locator('..').locator('.stat-value')).toHaveText('1.0000');
+  await expect(tests.getByText('Runs p').locator('..').locator('.stat-value')).toHaveText('1.0000');
+  // A broken LCG, by contrast, is caught.
+  await tests.getByLabel('Source', { exact: true }).selectOption('lcg');
+  await expect(tests.getByText('Distinct bytes')).toBeVisible();
+
+  // Timing jitter yields a conditioned 256-bit key.
+  await page.getByRole('button', { name: 'CPU jitter' }).click();
+  await page.getByRole('button', { name: /Measure/ }).click();
+  await expect(page.getByText('Conditioned to a 256-bit key')).toBeVisible({ timeout: 30_000 });
+});
+
+test('ChaCha20-Poly1305 and Ed25519 reproduce their RFC vectors', async ({ page }) => {
+  await open(page, '/block-ciphers/');
+  const chacha = page.locator('section', { hasText: 'ChaCha20-Poly1305' });
+  await expect(chacha.getByLabel('ChaCha20 output')).toContainText('d31a8d34648e60db7b86afbc53ef7ec2');
+  await expect(chacha.getByLabel('ChaCha20 output')).toContainText('1ae10b594f09e26a7e902ecbd0600691');
+  await expect(chacha.getByText('matches the RFC 8439')).toBeVisible();
+
+  await open(page, '/asymmetric/');
+  const ed = page.locator('section', { hasText: 'Ed25519 signatures' });
+  await ed.getByRole('button', { name: 'Sign', exact: true }).click();
+  await ed.getByRole('button', { name: 'Verify', exact: true }).click();
+  await expect(page.getByText('Valid for this message')).toBeVisible();
+  await ed.getByLabel('Message').fill('Transfer £9000 to Mallory');
+  await ed.getByRole('button', { name: 'Verify', exact: true }).click();
+  await expect(page.getByText('Invalid —')).toBeVisible();
+});
+
 test('404: a missing page gets the custom not-found', async ({ page }) => {
   const res = await page.goto('/no-such-page/');
   expect(res?.status()).toBe(404);

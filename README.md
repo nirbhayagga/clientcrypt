@@ -7,21 +7,22 @@ https://clientcrypt.nirbhay.dev
 | §  | Section                   | Contents                                                                                      | Standards                        |
 |----|---------------------------|-----------------------------------------------------------------------------------------------|----------------------------------|
 | 1  | Classical ciphers         | Caesar, Atbash, affine, Vigenère; χ²-ranked exhaustive search over the full key space, index of coincidence, key recovery | —              |
-| 2  | Block ciphers             | AES-128/192/256 in ECB, CBC, CTR, GCM; strict PKCS#7; block view; ECB image leakage demo       | FIPS 197, SP 800-38A/D           |
-| 3  | Hash functions & MACs     | MD5, SHA-1, SHA-256, SHA-512, SHA3-256; the SHA-256 compression function round by round; the length extension attack; HMAC; avalanche; HIBP k-anonymity | FIPS 180-4, FIPS 202, RFC 2104 |
+| 2  | Block ciphers             | AES-128/192/256 in ECB, CBC, CTR, GCM; ChaCha20-Poly1305; strict PKCS#7; ECB image leakage demo | FIPS 197, SP 800-38A/D, RFC 8439 |
+| 3  | Hash functions & MACs     | MD5 through SHA3-256; the SHA-256 compression function round by round; the length extension attack; HMAC; avalanche; HIBP k-anonymity | FIPS 180-4, FIPS 202, RFC 2104 |
 | 4  | Number theory             | Square-and-multiply modular exponentiation, extended Euclid and modular inverses, RSA and Diffie–Hellman worked by hand at toy sizes | —          |
-| 5  | Public-key cryptography   | RSA (PKCS#1 v1.5, OAEP, PSS, key components); finite-field DH with RFC 7919 groups or generated safe primes; X25519 | RFC 8017, RFC 7919, RFC 7748 |
-| 6  | Password security         | Entropy bound, attacker-rate table, top-1000 lookup, PBKDF2, scrypt and Argon2id timing        | RFC 8018, RFC 7914, RFC 9106     |
-| 7  | TLS 1.3 handshake         | X25519 key share, HKDF key schedule, traffic keys, AEAD record protection                     | RFC 8446, RFC 5869               |
-| 8  | Applied protocols         | WPA2-PSK key derivation, HOTP/TOTP one-time passwords, JWT signing (HS256/RS256), the WireGuard handshake | IEEE 802.11i, RFC 4226/6238, RFC 7519, Noise IKpsk2 |
-| 9  | Encodings                 | Base64, Base64url, hex, percent, binary; code-point and UTF-8 byte view                       | RFC 4648                         |
-| 10 | Benchmark                 | Identical chained SHA-256 workload in WebAssembly, JavaScript and WebCrypto                   | —                                |
+| 5  | Randomness                | RANDU's lattice seen in three dimensions, NIST monobit and runs tests, von Neumann extraction of pointer and CPU-jitter entropy | NIST SP 800-22 |
+| 6  | Public-key cryptography   | RSA (PKCS#1 v1.5, OAEP, PSS, key components); finite-field DH with RFC 7919 groups; X25519 agreement; Ed25519 signatures | RFC 8017, RFC 7919, RFC 7748, RFC 8032 |
+| 7  | Password security         | Entropy bound, attacker-rate table, top-1000 lookup, PBKDF2, scrypt and Argon2id timing        | RFC 8018, RFC 7914, RFC 9106     |
+| 8  | TLS 1.3 handshake         | X25519 key share, HKDF key schedule, traffic keys, AEAD record protection                     | RFC 8446, RFC 5869               |
+| 9  | Applied protocols         | WPA2-PSK key derivation, HOTP/TOTP one-time passwords, JWT signing (HS256/RS256), the WireGuard handshake | IEEE 802.11i, RFC 4226/6238, RFC 7519, Noise IKpsk2 |
+| 10 | Encodings                 | Base64, Base64url, hex, percent, binary; code-point and UTF-8 byte view                       | RFC 4648                         |
+| 11 | Benchmark                 | Identical chained SHA-256 workload in WebAssembly, JavaScript and WebCrypto                   | —                                |
 
 The only network request the application can make is the optional Have I Been Pwned range query in §3 (first five hex digits of a SHA-1 digest).
 
 ## Correctness
 
-`wasm-crypto` carries known-answer tests for every primitive it exposes: FIPS-197 Appendix C (AES-128/192/256), SP 800-38A (CBC, CTR), the GCM specification test cases, FIPS 180-4 and FIPS 202 digests, RFC 2202/4231 HMAC, RFC 6070-style PBKDF2-SHA256, the RFC 9106 Argon2id vector, RFC 7748 X25519, RFC 5869 HKDF, the RFC 8448 TLS 1.3 key-schedule trace, the IEEE 802.11i WPA2 PMK vectors, the RFC 4226 / RFC 6238 HOTP and TOTP vectors, and the RFC 7914 scrypt vector. The hand-written SHA-256 used for the round-by-round view is checked against the `sha2` crate at every padding boundary, and the length extension attack is verified to forge a digest that matches the genuine one. The WireGuard handshake is checked by having both peers derive their transport keys independently and requiring agreement. The RFC 7919 primes are checked to be safe primes. Playwright drives the same vectors through the UI.
+`wasm-crypto` carries known-answer tests for every primitive it exposes: FIPS-197 Appendix C (AES-128/192/256), SP 800-38A (CBC, CTR), the GCM specification test cases, FIPS 180-4 and FIPS 202 digests, RFC 2202/4231 HMAC, RFC 6070-style PBKDF2-SHA256, the RFC 9106 Argon2id vector, RFC 7748 X25519, RFC 5869 HKDF, the RFC 8448 TLS 1.3 key-schedule trace, the IEEE 802.11i WPA2 PMK vectors, the RFC 4226 / RFC 6238 HOTP and TOTP vectors, the RFC 7914 scrypt vector, the RFC 8439 ChaCha20-Poly1305 vector, and the RFC 8032 Ed25519 vectors. The hand-written SHA-256 used for the round-by-round view is checked against the `sha2` crate at every padding boundary, and the length extension attack is verified to forge a digest that matches the genuine one. The WireGuard handshake is checked by having both peers derive their transport keys independently and requiring agreement. The RFC 7919 primes are checked to be safe primes. Playwright drives the same vectors through the UI.
 
 ```bash
 cargo test --manifest-path wasm-crypto/Cargo.toml   # crate tests

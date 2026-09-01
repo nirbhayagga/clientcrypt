@@ -3,15 +3,16 @@ import { Panel, Note } from '@/components/ui';
 
 const CONTENTS: { num: string; href: string; title: string; topics: string; std: string }[] = [
   { num: '§1', href: '/classical/', title: 'Classical ciphers', topics: 'Caesar, Atbash, affine, Vigenère; frequency analysis, index of coincidence, exhaustive search and key recovery', std: '—' },
-  { num: '§2', href: '/block-ciphers/', title: 'Block ciphers', topics: 'AES-128/192/256 in ECB, CBC, CTR and GCM; PKCS#7 padding; ECB pattern leakage', std: 'FIPS 197 · SP 800-38A/D' },
-  { num: '§3', href: '/hashing/', title: 'Hash functions & MACs', topics: 'MD5, SHA-1, SHA-256, SHA-512, SHA3-256; the SHA-256 compression function round by round; length extension; HMAC; k-anonymity lookup', std: 'FIPS 180-4 · FIPS 202 · RFC 2104' },
+  { num: '§2', href: '/block-ciphers/', title: 'Block ciphers', topics: 'AES-128/192/256 in ECB, CBC, CTR and GCM; ChaCha20-Poly1305; PKCS#7 padding; ECB pattern leakage', std: 'FIPS 197 · SP 800-38A/D · RFC 8439' },
+  { num: '§3', href: '/hashing/', title: 'Hash functions & MACs', topics: 'MD5 through SHA3-256; the SHA-256 compression function round by round; length extension; HMAC; k-anonymity lookup', std: 'FIPS 180-4 · FIPS 202 · RFC 2104' },
   { num: '§4', href: '/numbers/', title: 'Number theory', topics: 'Square-and-multiply modular exponentiation, extended Euclid and modular inverses, RSA and Diffie–Hellman worked by hand', std: '—' },
-  { num: '§5', href: '/asymmetric/', title: 'Public-key cryptography', topics: 'RSA key generation, PKCS#1 v1.5 and OAEP encryption, signatures; finite-field Diffie–Hellman; X25519', std: 'RFC 8017 · RFC 7919 · RFC 7748' },
-  { num: '§6', href: '/passwords/', title: 'Password security', topics: 'Entropy estimation, guessing-time model, common-password lookup, PBKDF2, scrypt and Argon2id cost', std: 'RFC 8018 · RFC 7914 · RFC 9106' },
-  { num: '§7', href: '/tls/', title: 'TLS 1.3 handshake', topics: 'Key share, HKDF key schedule, traffic secrets — step by step', std: 'RFC 8446 · RFC 5869' },
-  { num: '§8', href: '/protocols/', title: 'Applied protocols', topics: 'WPA2-PSK key derivation, TOTP/HOTP one-time passwords, JWT signing, and the WireGuard handshake', std: 'IEEE 802.11i · RFC 6238 · RFC 7519' },
-  { num: '§9', href: '/encoding/', title: 'Encodings', topics: 'Base64, Base64url, hex, URL and binary encodings; these are not encryption', std: 'RFC 4648' },
-  { num: '§10', href: '/benchmark/', title: 'WASM vs JS benchmark', topics: 'Identical SHA-256 workload in Rust/WebAssembly, plain JavaScript and WebCrypto', std: '—' },
+  { num: '§5', href: '/randomness/', title: 'Randomness', topics: 'Lattice structure in a broken generator, NIST statistical tests, and entropy collected from pointer motion and CPU timing jitter', std: 'NIST SP 800-22' },
+  { num: '§6', href: '/asymmetric/', title: 'Public-key cryptography', topics: 'RSA key generation, OAEP and PSS; finite-field Diffie–Hellman; X25519 key agreement and Ed25519 signatures', std: 'RFC 8017 · RFC 7919 · RFC 7748 · RFC 8032' },
+  { num: '§7', href: '/passwords/', title: 'Password security', topics: 'Entropy estimation, guessing-time model, common-password lookup, PBKDF2, scrypt and Argon2id cost', std: 'RFC 8018 · RFC 7914 · RFC 9106' },
+  { num: '§8', href: '/tls/', title: 'TLS 1.3 handshake', topics: 'Key share, HKDF key schedule, traffic secrets — step by step', std: 'RFC 8446 · RFC 5869' },
+  { num: '§9', href: '/protocols/', title: 'Applied protocols', topics: 'WPA2-PSK key derivation, TOTP/HOTP one-time passwords, JWT signing, and the WireGuard handshake', std: 'IEEE 802.11i · RFC 6238 · RFC 7519' },
+  { num: '§10', href: '/encoding/', title: 'Encodings', topics: 'Base64, Base64url, hex, URL and binary encodings; these are not encryption', std: 'RFC 4648' },
+  { num: '§11', href: '/benchmark/', title: 'WASM vs JS benchmark', topics: 'Identical SHA-256 workload in Rust/WebAssembly, plain JavaScript and WebCrypto', std: '—' },
 ];
 
 const CRATES: [string, string][] = [

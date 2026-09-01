@@ -204,7 +204,7 @@ function RsaPanel({ ready }: { ready: boolean }) {
           </div>
         </>
       )}
-      <Note title="What is missing compared with §5">
+      <Note title="What is missing compared with §6">
         Everything that makes RSA safe in practice: primes hundreds of digits long, OAEP padding so identical messages do not
         produce identical ciphertexts, and a message that is a symmetric key rather than data. Textbook RSA as shown here is
         deterministic and malleable — encrypt the same number twice and you get the same ciphertext.
@@ -264,7 +264,7 @@ function DhPanel({ ready }: { ready: boolean }) {
             </div>
             <p className="faint small" style={{ marginTop: '0.5rem' }}>
               To recover the secret they must solve g^x ≡ A (mod p) for x — {d.brute_force_work}, which at p = {d.p} takes no time at all.
-              At the 2048-bit primes of §5 the same search is out of reach.
+              At the 2048-bit primes of §6 the same search is out of reach.
             </p>
           </div>
         </>
@@ -280,7 +280,7 @@ export default function NumbersPage() {
   const ready = state === 'ready';
   return (
     <Page kicker="§4 · Number theory" title="The arithmetic under public-key cryptography"
-      lede="Public-key cryptography is modular arithmetic with numbers too large to print. The operations are the ones below, at sizes small enough to follow every step by hand; §5 runs the same operations at sizes that are actually secure.">
+      lede="Public-key cryptography is modular arithmetic with numbers too large to print. The operations are the ones below, at sizes small enough to follow every step by hand; §6 runs the same operations at sizes that are actually secure.">
       <Status state={state} />
       <ModExpPanel ready={ready} />
       <EuclidPanel ready={ready} />

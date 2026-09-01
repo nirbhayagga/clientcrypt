@@ -74,6 +74,12 @@ export default function AsymmetricPage() {
   const agree = sharedA?.ok && sharedB?.ok && sharedA.value === sharedB.value;
 
   /* X25519 ------------------------------------------------------------------ */
+  const [ed, setEd] = useState<[string, string] | null>(null);
+  const [edMsg, setEdMsg] = useState('Transfer £100 to Bob');
+  const [edSig, setEdSig] = useState('');
+  const [edVerdict, setEdVerdict] = useState<boolean | null>(null);
+  if (ready && !ed) setEd(A.ed25519_keypair() as [string, string]);
+
   const [xa, setXa] = useState<[string, string] | null>(null);
   const [xb, setXb] = useState<[string, string] | null>(null);
   if (ready && !xa) { setXa(A.x25519_keypair() as [string, string]); setXb(A.x25519_keypair() as [string, string]); }
@@ -81,7 +87,7 @@ export default function AsymmetricPage() {
   const xsB = xa && xb ? attempt(() => A.x25519_shared(xb[0], xa[1])) : null;
 
   return (
-    <Page kicker="§5 · Public-key cryptography" title="RSA, Diffie–Hellman and X25519"
+    <Page kicker="§6 · Public-key cryptography" title="RSA, Diffie–Hellman, X25519 and Ed25519"
       lede="Public-key schemes rest on problems believed hard in one direction: factoring n = pq for RSA, and discrete logarithms in a prime-order group for Diffie–Hellman. The private computations below use the same libraries as production software; only the parameter sizes are chosen for speed.">
       <Status state={state} />
 
@@ -216,6 +222,41 @@ export default function AsymmetricPage() {
           : <div style={{ marginTop: '1rem' }}><Callout tone="danger">Secrets differ.</Callout></div>)}
       </Panel>
 
+      <Panel title="Ed25519 signatures" refs={['RFC 8032']}
+        action={<Button size="sm" onClick={() => { setEd(A.ed25519_keypair() as [string, string]); setEdSig(''); setEdVerdict(null); }} disabled={!ready}>New key</Button>}>
+        <p className="muted small">
+          The signature scheme on the same curve, and the default for SSH keys, Git commit signing and modern certificates.
+          Keys are 32 bytes and signatures 64 — against 256 and 256 bytes for a 2048-bit RSA key — and signing is
+          deterministic: the per-signature nonce is derived by hashing the private key with the message, so there is no random
+          value to leak. That single design choice removes the failure that cost Sony the PlayStation 3 signing key.
+        </p>
+        <div className="grid-2">
+          <Output label="Private key (seed)" value={ed?.[0] ?? ''} tone="danger" />
+          <Output label="Public key" value={ed?.[1] ?? ''} />
+        </div>
+        <div style={{ marginTop: '0.75rem' }}>
+          <Field label="Message">{(id) => <TextInput id={id} value={edMsg} onChange={(e) => { setEdMsg(e.target.value); setEdVerdict(null); }} disabled={!ready} />}</Field>
+        </div>
+        <div className="row" style={{ marginTop: '0.75rem' }}>
+          <Button variant="primary" disabled={!ed} onClick={() => { const r = attempt(() => A.ed25519_sign(ed![0], new TextEncoder().encode(edMsg))); setEdSig(r.ok ? r.value : ''); setEdVerdict(null); }}>Sign</Button>
+          <Button disabled={!edSig} onClick={() => { const r = attempt(() => A.ed25519_verify(ed![1], new TextEncoder().encode(edMsg), edSig)); setEdVerdict(r.ok ? r.value : false); }}>Verify</Button>
+        </div>
+        <div style={{ marginTop: '0.75rem' }}>
+          <Output label="Signature (64 bytes)" value={edSig} scroll />
+        </div>
+        {edVerdict !== null && (
+          <div style={{ marginTop: '0.75rem' }}>
+            {edVerdict ? <Callout tone="ok">Valid for this message under this public key.</Callout>
+                       : <Callout tone="danger">Invalid — the message, signature or key does not match.</Callout>}
+          </div>
+        )}
+        <Note title="Deterministic, and why that is safer">
+          Sign the same message twice and you get identical bytes, unlike RSA-PSS or ECDSA. That is not a weakness: the nonce
+          still varies between different messages because it is derived from the message itself. What it removes is any
+          dependence on the quality of the random number generator at signing time — see §5.
+        </Note>
+      </Panel>
+
       <Panel title="X25519" refs={['RFC 7748']} action={<Button size="sm" onClick={() => { setXa(A.x25519_keypair() as [string, string]); setXb(A.x25519_keypair() as [string, string]); }} disabled={!ready}>New keys</Button>}>
         <p className="muted small">
           Elliptic-curve Diffie–Hellman on Curve25519: 32-byte keys, 128-bit security, and the default key exchange in TLS 1.3 and SSH. The private scalar is
@@ -231,7 +272,7 @@ export default function AsymmetricPage() {
             </div>
           ))}
         </div>
-        {xsA?.ok && xsB?.ok && <div style={{ marginTop: '1rem' }}><Callout tone={xsA.value === xsB.value ? 'ok' : 'danger'}>{xsA.value === xsB.value ? 'Both sides derive the same 32-byte secret; TLS feeds it into HKDF (§7) rather than using it directly.' : 'Secrets differ.'}</Callout></div>}
+        {xsA?.ok && xsB?.ok && <div style={{ marginTop: '1rem' }}><Callout tone={xsA.value === xsB.value ? 'ok' : 'danger'}>{xsA.value === xsB.value ? 'Both sides derive the same 32-byte secret; TLS feeds it into HKDF (§8) rather than using it directly.' : 'Secrets differ.'}</Callout></div>}
       </Panel>
     </Page>
   );

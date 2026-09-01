@@ -61,7 +61,7 @@ export default function PasswordsPage() {
   };
 
   return (
-    <Page kicker="§6 · Password security" title="Password strength and key derivation"
+    <Page kicker="§7 · Password security" title="Password strength and key derivation"
       lede="A password's strength is the number of guesses an attacker needs, not its appearance. Two things decide that number: how the password was chosen, and how expensive the defender made each guess.">
       <Status state={state} />
 
