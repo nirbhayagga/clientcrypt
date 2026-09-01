@@ -21,6 +21,14 @@
 # playwright) this is better anyway — packages that must move together in one
 # commit cannot be split into per-package PRs that each pass CI.
 #
+# Standing alerts you can expect, and why they are not acted on:
+# the @lhci/cli -> lighthouse -> puppeteer-core -> @puppeteer/browsers ->
+# extract-zip / tmp chain carries high-severity advisories with no upstream fix
+# (npm's suggested "fix" is @lhci/cli 0.1.0, a downgrade that removes Lighthouse
+# entirely). That chain runs only in CI and ships nothing: the deployed site is
+# static HTML, CSS, JS and one .wasm file. Re-check when @lhci/cli releases a
+# version built on a patched Puppeteer.
+#
 # Proper fix, later: run Renovate as a scheduled Forgejo Action. It opens PRs on
 # Forgejo (the source of truth), so the mirror carries them outward in the
 # direction that already works.
