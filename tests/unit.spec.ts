@@ -31,7 +31,7 @@ test.describe('byte helpers', () => {
 
 test.describe('static export', () => {
   test('ships headers, robots, sitemap and the wasm module', () => {
-    for (const f of ['out/_headers', 'out/robots.txt', 'out/sitemap.xml', 'out/pkg/wasm_crypto_bg.wasm', 'out/404.html', 'out/classical/index.html', 'out/numbers/index.html', 'out/protocols/index.html', 'out/privacy/index.html', 'out/randomness/index.html', 'out/attacks/index.html']) {
+    for (const f of ['out/_headers', 'out/robots.txt', 'out/sitemap.xml', 'out/pkg/wasm_crypto_bg.wasm', 'out/404.html', 'out/classical/index.html', 'out/numbers/index.html', 'out/protocols/index.html', 'out/privacy/index.html', 'out/randomness/index.html', 'out/attacks/index.html', 'out/zkp/index.html']) {
       expect(existsSync(f), f).toBe(true);
     }
     const headers = readFileSync('out/_headers', 'utf8');
@@ -54,7 +54,7 @@ test.describe('static export', () => {
     expect(readFileSync('out/404.html', 'utf8')).toContain('No such page');
     // Every route is listed in the sitemap.
     const sitemap = readFileSync('out/sitemap.xml', 'utf8');
-    for (const r of ['', 'numbers/', 'randomness/', 'protocols/', 'attacks/', 'privacy/', 'benchmark/']) {
+    for (const r of ['', 'numbers/', 'randomness/', 'protocols/', 'attacks/', 'zkp/', 'privacy/', 'benchmark/']) {
       expect(sitemap, r).toContain(`https://clientcrypt.nirbhay.dev/${r}<`);
     }
   });

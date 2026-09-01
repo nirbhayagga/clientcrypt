@@ -296,3 +296,54 @@ test('benchmark: WASM and JS agree on the final digest', async ({ page }) => {
   await page.getByRole('button', { name: 'Run all' }).click();
   await expect(page.getByText('All runs agree on the final digest')).toBeVisible({ timeout: 120_000 });
 });
+
+test('classical: Enigma matches the known vector and inverts itself', async ({ page }) => {
+  await open(page, '/classical/');
+  const panel = page.locator('section', { hasText: 'The Enigma machine' });
+  await panel.getByLabel('Plugboard pairs').fill('');
+  await panel.getByLabel('Message').fill('AAAAA');
+  // Rotors I II III, positions AAA, rings AAA: the classic AAAAA → BDZGO.
+  await expect(page.getByLabel('Enigma output')).toContainText('BDZGO');
+  await expect(page.getByLabel('Enigma roundtrip')).toContainText('AAAAA');
+  // With the plugboard restored, the involution still holds on a real sentence.
+  await panel.getByLabel('Plugboard pairs').fill('AV BS CG DL FU');
+  await panel.getByLabel('Message').fill('WEATHER REPORT');
+  await expect(page.getByLabel('Enigma roundtrip')).toContainText('WEATHER REPORT');
+});
+
+test('randomness: CSPRNG stream is deterministic, commit-reveal catches a cheat', async ({ page }) => {
+  await open(page, '/randomness/');
+  // Same seed produces the same stream; a flipped seed bit changes ~half the output.
+  const csprng = page.locator('section', { hasText: 'Stretching a seed' });
+  await expect(csprng.getByText('same seed → identical every time')).toBeVisible();
+  await expect(csprng.getByText(/% of bits differ/)).toBeVisible();
+  // Birthday bound: 16-bit values collide after roughly 321 draws, not 65,536.
+  const birthday = page.locator('section', { hasText: 'The birthday bound' });
+  await birthday.getByLabel('Value size').selectOption('16');
+  await birthday.getByRole('button', { name: 'Draw until values collide' }).click();
+  await expect(birthday.getByText('Theory: 1.25 · √space').locator('..')).toContainText('321');
+  // Commit–reveal: honest reveal verifies; revealing the other bit is caught.
+  const coin = page.locator('section', { hasText: 'commit–reveal coin flip' });
+  await expect(coin.getByText(/Commitment verifies.*heads/)).toBeVisible();
+  await coin.getByRole('group', { name: "Alice's behaviour" }).getByRole('button', { name: 'Cheat' }).click();
+  await expect(coin.getByText(/Caught/)).toBeVisible();
+});
+
+test('passwords: diceware generates a countable-entropy passphrase', async ({ page }) => {
+  await open(page, '/passwords/');
+  const panel = page.locator('section', { hasText: 'diceware' });
+  await panel.getByRole('button', { name: 'Generate' }).click();
+  const phrase = await page.getByLabel('Generated passphrase').textContent();
+  expect(phrase!.trim().split('-')).toHaveLength(6);
+  await expect(panel.getByText('Entropy', { exact: true }).locator('..')).toContainText('77.5 bits');
+});
+
+test('zkp: Schnorr proof verifies and the Fiat-Shamir signature detects tampering', async ({ page }) => {
+  await open(page, '/zkp/');
+  await page.getByRole('button', { name: 'Issue a random challenge' }).click();
+  const verdict = page.getByText('Verdict').locator('..');
+  await expect(verdict).toContainText('accepted');
+  await page.getByRole('button', { name: 'Sign the message' }).click();
+  await expect(page.getByText('Signature verifies').locator('..')).toContainText('yes');
+  await expect(page.getByText('Same signature on a tampered message').locator('..')).toContainText('rejected');
+});

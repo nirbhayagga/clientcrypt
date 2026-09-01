@@ -11,6 +11,7 @@ export const SECTIONS = [
   { href: '/tls/', num: '§8', label: 'TLS 1.3 handshake' },
   { href: '/protocols/', num: '§9', label: 'Applied protocols' },
   { href: '/attacks/', num: '§10', label: 'Attacks' },
-  { href: '/encoding/', num: '§11', label: 'Encodings' },
-  { href: '/benchmark/', num: '§12', label: 'WASM vs JS benchmark' },
+  { href: '/zkp/', num: '§11', label: 'Zero-knowledge proofs' },
+  { href: '/encoding/', num: '§12', label: 'Encodings' },
+  { href: '/benchmark/', num: '§13', label: 'WASM vs JS benchmark' },
 ] as const;
