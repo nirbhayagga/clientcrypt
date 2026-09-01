@@ -85,6 +85,83 @@ impl PasswordSecurity {
         }
         hex::encode(data)
     }
+
+    /// Runs the embedded top-1000 list against a leaked hash of `target`,
+    /// hashing each candidate the same way the "server" did. Returns the
+    /// 1-based rank at which `target` was found (0 if it is not in the list)
+    /// and how many candidates were tried getting there. The caller times the
+    /// call, which is the whole point: a fast hash searches the list in
+    /// milliseconds, a memory-hard one takes seconds per guess.
+    ///
+    /// `alg` is a fast digest ("md5", "sha1", "sha256", "sha512"), "pbkdf2"
+    /// (HMAC-SHA256 with `cost` iterations) or "argon2" (`cost` KiB of memory,
+    /// one pass). `salt` matches what the defender stored.
+    /// `max_candidates` caps the number hashed so a memory-hard function does
+    /// not hang the page; the caller sizes it by the hash's speed. Every
+    /// candidate up to the cap is hashed (no early exit) so the elapsed time
+    /// the caller measures reflects a stable count and yields a real rate.
+    pub fn dictionary_attack(alg: &str, cost: u32, salt: &[u8], target: &str, max_candidates: u32) -> Result<DictionaryResult> {
+        let want = hash_candidate(alg, cost, salt, target)?;
+        let cap = max_candidates.min(1000).max(1);
+        let mut found_rank = 0u32;
+        let mut tried = 0u32;
+        for (i, candidate) in TOP_1000.lines().take(cap as usize).enumerate() {
+            tried += 1;
+            if found_rank == 0 && hash_candidate(alg, cost, salt, candidate)? == want {
+                found_rank = i as u32 + 1;
+            } else {
+                // Hash anyway, so the timing covers a fixed amount of work.
+                let _ = hash_candidate(alg, cost, salt, candidate)?;
+            }
+        }
+        Ok(DictionaryResult { found_rank, tried, list_size: 1000 })
+    }
+}
+
+/// One candidate hashed the way the defender would have stored it.
+fn hash_candidate(alg: &str, cost: u32, salt: &[u8], candidate: &str) -> Result<Vec<u8>> {
+    match alg {
+        "md5" | "sha1" | "sha256" | "sha512" => {
+            // Salted fast hash: what an unwise site actually does.
+            let mut input = salt.to_vec();
+            input.extend_from_slice(candidate.as_bytes());
+            crate::hashing::digest_bytes(alg, &input)
+        }
+        "pbkdf2" => {
+            let mut out = [0u8; 32];
+            pbkdf2::pbkdf2_hmac::<Sha256>(candidate.as_bytes(), salt, cost.max(1), &mut out);
+            Ok(out.to_vec())
+        }
+        "argon2" => {
+            if salt.len() < 8 { return Err(CryptoError::new("Argon2 needs a salt of at least 8 bytes")); }
+            let params = ParamsBuilder::new().m_cost(cost.max(8)).t_cost(1).p_cost(1).output_len(32).build()
+                .map_err(|e| CryptoError::new(format!("Argon2 parameters: {e}")))?;
+            let mut out = [0u8; 32];
+            Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
+                .hash_password_into(candidate.as_bytes(), salt, &mut out)
+                .map_err(|e| CryptoError::new(format!("Argon2: {e}")))?;
+            Ok(out.to_vec())
+        }
+        other => Err(CryptoError::new(format!("Unknown algorithm '{other}'"))),
+    }
+}
+
+/// Outcome of a dictionary attack, serialised to JS.
+#[wasm_bindgen]
+pub struct DictionaryResult {
+    found_rank: u32,
+    tried: u32,
+    list_size: u32,
+}
+
+#[wasm_bindgen]
+impl DictionaryResult {
+    #[wasm_bindgen(getter)]
+    pub fn found_rank(&self) -> u32 { self.found_rank }
+    #[wasm_bindgen(getter)]
+    pub fn tried(&self) -> u32 { self.tried }
+    #[wasm_bindgen(getter)]
+    pub fn list_size(&self) -> u32 { self.list_size }
 }
 
 #[cfg(test)]
@@ -114,6 +191,24 @@ mod tests {
         assert_eq!(PasswordSecurity::pbkdf2_sha256("password", b"salt", 2, 32).unwrap(), "ae4d0c95af6b46d32d0adff928f06dd02a303f8ef3c251dfd6e2d85a95474c43");
         assert_eq!(PasswordSecurity::pbkdf2_sha256("password", b"salt", 4096, 32).unwrap(), "c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a");
         assert!(PasswordSecurity::pbkdf2_sha256("x", b"s", 0, 32).is_err());
+    }
+
+    #[test]
+    fn dictionary_attack_finds_common_passwords_by_rank() {
+        // "password" is #2 in the list; a fast salted hash finds it there.
+        let r = PasswordSecurity::dictionary_attack("sha256", 0, b"salt", "password", 1000).unwrap();
+        assert_eq!(r.found_rank, 2);
+        assert_eq!(r.tried, 1000);
+        // "123456" is #1.
+        assert_eq!(PasswordSecurity::dictionary_attack("md5", 0, b"salt", "123456", 1000).unwrap().found_rank, 1);
+        // A password not in the list is searched to exhaustion and not found.
+        let miss = PasswordSecurity::dictionary_attack("sha256", 0, b"salt", "correct horse battery staple", 1000).unwrap();
+        assert_eq!(miss.found_rank, 0);
+        assert_eq!(miss.tried, 1000);
+        // The slow hashes locate the same word, just far more expensively per guess.
+        assert_eq!(PasswordSecurity::dictionary_attack("pbkdf2", 1000, b"salt", "password", 64).unwrap().found_rank, 2);
+        assert_eq!(PasswordSecurity::dictionary_attack("argon2", 512, b"longsalt", "password", 32).unwrap().found_rank, 2);
+        assert!(PasswordSecurity::dictionary_attack("crc32", 0, b"salt", "x", 10).is_err());
     }
 
     #[test]
