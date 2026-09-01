@@ -24,7 +24,7 @@ export default function Sidebar({ version }: { version: string }) {
         ))}
       </nav>
       <div className="sidebar-foot">
-        v{version} · <a href="https://github.com/nirbhayagga/clientcrypt" target="_blank" rel="noreferrer">source</a><br />
+        v{version} · <a href="https://github.com/nirbhayagga/clientcrypt" target="_blank" rel="noreferrer">source</a> · <Link href="/privacy/">privacy</Link><br />
         Rust → WebAssembly<br />
         No data leaves the browser.
       </div>
