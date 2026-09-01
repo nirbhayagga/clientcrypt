@@ -92,11 +92,11 @@ pub fn encrypt_block_rounds(key: &[u8; 16], block: &[u8; 16], rounds: u8) -> [u8
     let r = rounds.clamp(1, 10) as usize;
     let mut s = *block;
     add_round_key(&mut s, &keys[0]);
-    for i in 1..r {
+    for round_key in keys.iter().take(r).skip(1) {
         sub_bytes(&mut s);
         shift_rows(&mut s);
         mix_columns(&mut s);
-        add_round_key(&mut s, &keys[i]);
+        add_round_key(&mut s, round_key);
     }
     // The last round omits MixColumns, so that decryption is symmetric.
     sub_bytes(&mut s);

@@ -185,10 +185,10 @@ pub fn mod_inverse(a: u64, m: u64) -> Option<u64> {
 
 fn is_prime(n: u64) -> bool {
     if n < 2 { return false; }
-    if n % 2 == 0 { return n == 2; }
+    if n.is_multiple_of(2) { return n == 2; }
     let mut d = 3u64;
     while d.saturating_mul(d) <= n {
-        if n % d == 0 { return false; }
+        if n.is_multiple_of(d) { return false; }
         d += 2;
     }
     true

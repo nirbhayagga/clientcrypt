@@ -37,7 +37,7 @@ fn need_iv(iv: &[u8]) -> Result<[u8; BLOCK]> {
 }
 
 fn need_blocks(data: &[u8], what: &str) -> Result<()> {
-    if data.len() % BLOCK != 0 {
+    if !data.len().is_multiple_of(BLOCK) {
         return Err(CryptoError::new(format!("{what} length must be a multiple of 16 bytes (got {})", data.len())));
     }
     Ok(())

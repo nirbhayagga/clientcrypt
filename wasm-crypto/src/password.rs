@@ -29,7 +29,7 @@ impl PasswordSecurity {
         if password.chars().any(|c| c.is_ascii_uppercase()) { pool += 26; }
         if password.chars().any(|c| c.is_ascii_digit()) { pool += 10; }
         if password.chars().any(|c| c.is_ascii() && !c.is_ascii_alphanumeric()) { pool += 33; }
-        if password.chars().any(|c| !c.is_ascii()) { pool += 1000; }
+        if !password.is_ascii() { pool += 1000; }
         (pool > 0).then_some(pool)
     }
 
@@ -102,7 +102,7 @@ impl PasswordSecurity {
     /// the caller measures reflects a stable count and yields a real rate.
     pub fn dictionary_attack(alg: &str, cost: u32, salt: &[u8], target: &str, max_candidates: u32) -> Result<DictionaryResult> {
         let want = hash_candidate(alg, cost, salt, target)?;
-        let cap = max_candidates.min(1000).max(1);
+        let cap = max_candidates.clamp(1, 1000);
         let mut found_rank = 0u32;
         let mut tried = 0u32;
         for (i, candidate) in TOP_1000.lines().take(cap as usize).enumerate() {

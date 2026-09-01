@@ -292,7 +292,7 @@ mod tests {
         let seq = lcg_raw(1, 65539, 0, 1 << 31, 200);
         for w in seq.windows(3) {
             let (x0, x1, x2) = (w[0] as i128, w[1] as i128, w[2] as i128);
-            assert_eq!((6 * x1 - 9 * x0).rem_euclid(M), x2 as i128, "lattice relation broken");
+            assert_eq!((6 * x1 - 9 * x0).rem_euclid(M), x2, "lattice relation broken");
         }
         // A byte histogram alone would not catch it.
         let bytes = Randomness::lcg_bytes(1, 65539, 0, 1 << 31, 4096).unwrap();
@@ -318,7 +318,7 @@ mod tests {
             let mut byte = 0u8;
             for _ in 0..8 {
                 state = state.wrapping_mul(1_103_515_245).wrapping_add(12_345);
-                let bit = if (state >> 16) % 4 == 0 { 0 } else { 1 };
+                let bit = if (state >> 16).is_multiple_of(4) { 0 } else { 1 };
                 byte = (byte << 1) | bit;
             }
             biased.push(byte);
