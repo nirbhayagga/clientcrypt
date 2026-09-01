@@ -324,8 +324,8 @@ function ReducedRoundPanel({ ready }: { ready: boolean }) {
     drawScene(ctx);
     rgbaRef.current = ctx.getImageData(0, 0, SIZE, SIZE).data;
     const key = new Uint8Array(16); crypto.getRandomValues(key);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setKeyHex(bytesToHex(key));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, seed]);
 
   // Redraws only the ciphertext canvas as the round count changes; a pure DOM

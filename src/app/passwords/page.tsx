@@ -100,6 +100,8 @@ export default function PasswordsPage() {
         </Note>
       </Panel>
 
+      <DicewarePanel ready={ready} />
+
       <Panel title="Key derivation cost" refs={['RFC 8018', 'RFC 7914', 'RFC 9106', 'OWASP']}
         action={<Button variant="primary" onClick={runKdf} disabled={!ready || kdfBusy}>{kdfBusy ? 'Deriving…' : 'Derive keys and time them'}</Button>}>
         <p className="muted small">
@@ -250,6 +252,62 @@ function DictionaryAttackPanel({ ready }: { ready: boolean }) {
         so it does nothing against the per-target list search above. Making each guess expensive is the separate job of PBKDF2,
         scrypt and Argon2id. A password not in the list (try the last option) survives regardless, which is the real defence:
         don&apos;t pick a password an attacker&apos;s list already contains.
+      </Note>
+    </Panel>
+  );
+}
+
+/* Diceware ------------------------------------------------------------------- */
+
+function DicewarePanel({ ready }: { ready: boolean }) {
+  const [words, setWords] = useState(6);
+  const [sep, setSep] = useState('-');
+  const [phrase, setPhrase] = useState('');
+
+  const generate = () => {
+    const r = attempt(() => wasm.PasswordSecurity.diceware(words, sep));
+    setPhrase(r.ok ? r.value : '');
+  };
+
+  const bits = ready ? wasm.PasswordSecurity.diceware_entropy(words) : words * 12.925;
+  const gpuYears = wasm && ready ? wasm.PasswordSecurity.crack_time(bits, 1e10, false) / 31_557_600 : 0;
+
+  return (
+    <Panel title="Generating a password worth having: diceware" refs={['EFF long wordlist']}
+      action={<Button size="sm" variant="primary" onClick={generate} disabled={!ready}>Generate</Button>}>
+      <p className="muted small">
+        The model above can only <em>bound</em> the entropy of a password you invented, because human choice is not uniform.
+        Diceware inverts the problem: pick words uniformly at random from a public list of 7,776, and the entropy is not an
+        estimate but a count — exactly log₂(7776) ≈ 12.9 bits per word, even though the attacker has the wordlist. Selection
+        uses the OS CSPRNG with rejection sampling (§5), and nothing leaves this page.
+      </p>
+      <div className="grid-2">
+        <Field label="Words" hint={`${bits.toFixed(1)} bits of entropy`}>{(id) => (
+          <Select id={id} value={words} onChange={(e) => setWords(Number(e.target.value))} disabled={!ready}>
+            {[4, 5, 6, 7, 8].map((n) => <option key={n} value={n}>{n} words — {(n * 12.925).toFixed(0)} bits</option>)}
+          </Select>
+        )}</Field>
+        <Field label="Separator">{(id) => (
+          <Select id={id} value={sep} onChange={(e) => setSep(e.target.value)} disabled={!ready}>
+            <option value="-">hyphen</option>
+            <option value=" ">space</option>
+            <option value=".">dot</option>
+          </Select>
+        )}</Field>
+      </div>
+      <Output label="Passphrase" value={phrase} tone="accent" placeholder="press Generate" ariaLabel="Generated passphrase" />
+      {phrase && (
+        <div className="grid-2" style={{ marginTop: '0.75rem' }}>
+          <Stat label="Entropy" value={`${bits.toFixed(1)} bits`} sub={`${words} × log₂(7776), by construction`} />
+          <Stat label="GPU rig at 10¹⁰ guesses/s" value={gpuYears > 1e6 ? `${gpuYears.toExponential(1)} years` : `${Math.round(gpuYears).toLocaleString()} years`} sub="expected exhaustive search" />
+        </div>
+      )}
+      <Note title="Why words beat complexity rules">
+        &quot;xkcd 936&quot; is right for a reason this page can now state precisely: six common words carry ~77 bits of countable
+        entropy and survive a dictionary attack by construction — the attack in the panel below needs the <em>joint</em>
+        choice of words, not any single one. An 8-character &quot;complex&quot; password maxes out near 52 bits and is usually far
+        weaker, because its choices correlate. Memorability is the security feature: a passphrase you can remember does not
+        end up on a sticky note or reused across sites.
       </Note>
     </Panel>
   );

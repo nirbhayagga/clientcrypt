@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useWasm, wasm, attempt } from '@/lib/wasm';
-import { bytesToHex } from '@/lib/bytes';
-import { Page, Panel, Note, Field, Select, Segmented, Output, Stat, Status, ErrorText, Button } from '@/components/ui';
+import { bytesToHex, hexToBytes, randomHex, hammingDistanceHex } from '@/lib/bytes';
+import { Page, Panel, Note, Callout, Field, TextInput, Select, Segmented, Output, Stat, Status, ErrorText, Button, Tag } from '@/components/ui';
 
 interface Analysis {
   bytes: number; bits: number; ones_fraction: number; monobit_p: number; runs_p: number;
@@ -321,6 +321,391 @@ function CollectPanel({ ready, collected, setCollected }: { ready: boolean; coll
   );
 }
 
+/* Stretching a seed: the CSPRNG itself --------------------------------------- */
+
+function CsprngPanel({ ready, setCollected }: { ready: boolean; setCollected: (b: Uint8Array) => void }) {
+  const [seed, setSeed] = useState('000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f');
+  const [len, setLen] = useState(64);
+
+  const res = ready ? attempt(() => {
+    const a = wasm.Randomness.csprng_stream(seed, 0n, len);
+    const b = wasm.Randomness.csprng_stream(seed, 0n, len);
+    // Flip the lowest bit of the first seed byte.
+    const flipped = (parseInt(seed.slice(0, 2), 16) ^ 1).toString(16).padStart(2, '0') + seed.slice(2);
+    const c = wasm.Randomness.csprng_stream(flipped, 0n, len);
+    const sample = wasm.Randomness.csprng_stream(seed, 0n, 8192);
+    const stats = wasm.Randomness.analyse(hexToBytes(sample)) as Analysis;
+    return { a, b, c, stats, sample };
+  }) : null;
+  const r = res?.ok ? res.value : null;
+  const diffBits = r ? hammingDistanceHex(r.a, r.c) : 0;
+
+  return (
+    <Panel title="Stretching a seed: what a CSPRNG actually is" refs={['ChaCha20 keystream']}
+      action={<Button size="sm" onClick={() => setSeed(randomHex(32))} disabled={!ready}>New random seed</Button>}>
+      <p className="muted small">
+        The panels above collect and test entropy, and the answer below says &quot;use the operating system&quot; — this panel is
+        the step in between. An OS gathers a few hundred bits of real entropy <em>once</em>, then stretches them with a keyed
+        stream cipher into every random byte it will ever hand out. Here that generator is ChaCha20 keyed by your 32-byte
+        seed: fully deterministic, yet indistinguishable from random to anyone who lacks the seed.
+      </p>
+      <div className="grid-2">
+        <Field label="Seed (32 bytes, hex)" hint="the only secret; everything below follows from it">{(id) => (
+          <TextInput id={id} mono value={seed} onChange={(e) => setSeed(e.target.value.toLowerCase())} disabled={!ready} />
+        )}</Field>
+        <Field label="Output length">{(id) => (
+          <Select id={id} value={len} onChange={(e) => setLen(Number(e.target.value))} disabled={!ready}>
+            {[32, 64, 128].map((n) => <option key={n} value={n}>{n} bytes</option>)}
+          </Select>
+        )}</Field>
+      </div>
+      <ErrorText error={res && !res.ok ? res.error : null} />
+      {r && (
+        <>
+          <div className="stack">
+            <Output label={<>Stream from this seed {r.a === r.b && <Tag tone="ok">same seed → identical every time</Tag>}</>} value={r.a} scroll />
+            <Output label={<>Stream after flipping one seed bit <Tag tone="danger">{`${((diffBits / (len * 8)) * 100).toFixed(1)}% of bits differ`}</Tag></>} value={r.c} scroll />
+          </div>
+          <div className="grid-3" style={{ marginTop: '0.75rem' }}>
+            <Stat label="Monobit p (8 KB sample)" value={r.stats.monobit_p.toFixed(4)} tone={r.stats.monobit_p < 0.01 ? 'danger' : 'ok'} sub="passes the battery above" />
+            <Stat label="Entropy of output" value={r.stats.shannon_bits_per_byte.toFixed(3)} sub="bits per byte — yet true entropy is only the seed's" />
+            <Stat label="Stream limit" value="2⁶⁴ blocks" sub="per seed and nonce; then rekey" />
+          </div>
+          <div style={{ marginTop: '0.75rem' }}>
+            <Button onClick={() => setCollected(hexToBytes(r.sample))} disabled={!ready}>Send 8 KB of this stream to the tests above</Button>
+          </div>
+        </>
+      )}
+      <Note title="Deterministic and unpredictable are compatible">
+        The stream passes every statistical test yet contains no entropy beyond the 256 seed bits — run the panel twice and
+        it repeats exactly. That is not a defect; it is the design. Security rests entirely on the seed being secret and
+        random, which is why the failures in the table below are all <em>seeding</em> failures. This construction (a stream
+        cipher as generator) is what Linux&apos;s <code>/dev/urandom</code>, <code>getrandom()</code> and the browser&apos;s{' '}
+        <code>crypto.getRandomValues()</code> do after boot.
+      </Note>
+    </Panel>
+  );
+}
+
+/* Using randomness without skewing it ---------------------------------------- */
+
+const PERMS = ['ABC', 'ACB', 'BAC', 'BCA', 'CAB', 'CBA'];
+
+function SamplingPanel({ ready }: { ready: boolean }) {
+  const [n, setN] = useState(100);
+  const [tick, setTick] = useState(0);
+
+  // Modulo bias: map 100k random bytes into 0..n-1 both ways.
+  const draws = 100_000;
+  const biased = new Array<number>(n).fill(0);
+  const fair = new Array<number>(n).fill(0);
+  if (ready) {
+    void tick;
+    const bytes = randomBytes(draws);
+    const limit = 256 - (256 % n);
+    for (const b of bytes) {
+      biased[b % n]++;
+      if (b < limit) fair[b % n]++; // rejection sampling: discard the ragged tail
+    }
+  }
+  const overRepresented = 256 % n === 0 ? 0 : 256 % n;
+  const biasRatio = overRepresented ? Math.ceil(256 / n) / Math.floor(256 / n) : 1;
+
+  // Fisher–Yates, correct vs naive, over the 6 permutations of ABC.
+  const trials = 30_000;
+  const naive = new Array<number>(6).fill(0);
+  const correct = new Array<number>(6).fill(0);
+  if (ready) {
+    const rand = (k: number) => Math.floor((crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32) * k);
+    for (let t = 0; t < trials; t++) {
+      const a = ['A', 'B', 'C'];
+      // Naive: swap every position with a random position anywhere.
+      for (let i = 0; i < 3; i++) { const j = rand(3); [a[i], a[j]] = [a[j], a[i]]; }
+      naive[PERMS.indexOf(a.join(''))]++;
+      const b = ['A', 'B', 'C'];
+      // Fisher–Yates: swap position i only with a position ≥ i.
+      for (let i = 0; i < 2; i++) { const j = i + rand(3 - i); [b[i], b[j]] = [b[j], b[i]]; }
+      correct[PERMS.indexOf(b.join(''))]++;
+    }
+  }
+
+  const maxFreq = Math.max(...biased, ...fair, 1);
+  return (
+    <Panel title="Using randomness without skewing it" refs={['rejection sampling', 'Fisher–Yates']}
+      action={<Button size="sm" onClick={() => setTick((t) => t + 1)} disabled={!ready}>Redraw</Button>}>
+      <p className="muted small">
+        A perfect random source is still ruined by careless use. <code>random_byte % {n}</code> looks harmless, but 256 does
+        not divide evenly into {n}: the first {overRepresented || 'no'} values get one extra byte each and appear{' '}
+        {overRepresented ? `${((biasRatio - 1) * 100).toFixed(0)}% more often` : 'no more often'} than the rest. The fix is
+        rejection sampling — throw away the ragged tail of the byte range and draw again.
+      </p>
+      <Field label="Range to sample (0 to n−1)">{(id) => (
+        <Select id={id} value={n} onChange={(e) => setN(Number(e.target.value))} disabled={!ready}>
+          <option value={100}>n = 100 — % biases half the values upward by 50%</option>
+          <option value={52}>n = 52 — a card deck; 48 values land 20% hot</option>
+          <option value={6}>n = 6 — a die; the bias is only 2.4%, but it is there</option>
+        </Select>
+      )}</Field>
+      <div className="grid-2">
+        {([['random_byte % n', biased, 'danger'], ['rejection sampling', fair, 'ok']] as const).map(([label, counts, tone]) => (
+          <div key={label}>
+            <div className="label" style={{ marginBottom: '0.4rem' }}><span>{label}</span></div>
+            <div className="bars" style={{ height: 72, gap: 1 }} aria-label={`Histogram of ${label}`}>
+              {counts.map((c, i) => (
+                <div key={i} className="bar"><div className="bar-fill" style={{ height: `${(c / maxFreq) * 100}%`, background: tone === 'danger' && overRepresented && i < overRepresented ? 'var(--danger)' : undefined }} /></div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <hr className="divider" />
+      <p className="muted small">
+        The same mistake in shuffle form: swapping every card with a random position <em>anywhere</em> gives 3³ = 27 equally
+        likely execution paths spread over 6 permutations — and 27 is not divisible by 6, so some orderings must come up more
+        often. Fisher–Yates swaps position <em>i</em> only with positions from <em>i</em> onward: 3·2·1 = 6 paths, one per
+        permutation. A real casino-platform version of this bug let players predict online card orders.
+      </p>
+      <div className="grid-2">
+        {([['naive shuffle', naive], ['Fisher–Yates', correct]] as const).map(([label, counts]) => (
+          <div key={label}>
+            <div className="label" style={{ marginBottom: '0.4rem' }}><span>{label} — {trials.toLocaleString()} shuffles of ABC</span></div>
+            <div className="bars" style={{ height: 72 }} aria-label={`Permutation frequencies for ${label}`}>
+              {counts.map((c, i) => {
+                const dev = Math.abs(c - trials / 6) / (trials / 6);
+                return (
+                  <div key={PERMS[i]} className="bar">
+                    <div className="bar-value">{((c / trials) * 100).toFixed(1)}%</div>
+                    <div className="bar-fill" style={{ height: `${(c / (trials / 3)) * 100}%`, background: dev > 0.05 ? 'var(--danger)' : undefined }} />
+                    <div className="bar-label">{PERMS[i]}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      <Note title="Where this bites in cryptography">
+        Anywhere a random value is folded into a smaller range: picking a key from a wordlist, generating a numeric code,
+        choosing a DH exponent below the group order. The diceware generator in §7 and every <code>gen_range</code> in this
+        site&apos;s crate use rejection sampling for exactly this reason. The bias is small per draw but systematic, and
+        systematic is what cryptanalysis eats.
+      </Note>
+    </Panel>
+  );
+}
+
+/* Birthday collisions --------------------------------------------------------- */
+
+function BirthdayPanel({ ready }: { ready: boolean }) {
+  const [bits, setBits] = useState(24);
+  const [result, setResult] = useState<{ bits: number; mean: number; min: number; max: number; trials: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const run = () => {
+    setBusy(true);
+    setTimeout(() => {
+      const trials = bits >= 32 ? 40 : 150;
+      const counts: number[] = [];
+      const buf = new Uint32Array(1024);
+      for (let t = 0; t < trials; t++) {
+        const seen = new Set<number>();
+        let draws = 0;
+        outer: for (;;) {
+          crypto.getRandomValues(buf);
+          for (const v of buf) {
+            const x = bits >= 32 ? v : v >>> (32 - bits);
+            draws++;
+            if (seen.has(x)) break outer;
+            seen.add(x);
+          }
+        }
+        counts.push(draws);
+      }
+      const mean = counts.reduce((a, b) => a + b, 0) / trials;
+      setResult({ bits, mean, min: Math.min(...counts), max: Math.max(...counts), trials });
+      setBusy(false);
+    }, 30);
+  };
+
+  const theory = 1.2533 * Math.sqrt(2 ** bits);
+  return (
+    <Panel title="The birthday bound" refs={['birthday paradox']}>
+      <p className="muted small">
+        How many random {bits}-bit values can you draw before two collide? Intuition says something near the size of the
+        space, 2<sup>{bits}</sup> = {(2 ** bits).toLocaleString()}. The real answer is near its <em>square root</em>:
+        about 1.25·2<sup>{bits}/2</sup> ≈ {Math.round(theory).toLocaleString()} draws, because what matters is the number of
+        <em> pairs</em>, which grows quadratically.
+      </p>
+      <div className="row">
+        <Field label="Value size">{(id) => (
+          <Select id={id} value={bits} onChange={(e) => setBits(Number(e.target.value))} disabled={!ready}>
+            {[16, 20, 24, 28, 32].map((b) => <option key={b} value={b}>{b} bits — space of {(2 ** b).toLocaleString()}</option>)}
+          </Select>
+        )}</Field>
+        <Button variant="primary" onClick={run} disabled={!ready || busy} style={{ alignSelf: 'end' }}>
+          {busy ? 'Drawing…' : 'Draw until values collide'}
+        </Button>
+      </div>
+      {result && (
+        <div className="grid-3" style={{ marginTop: '0.75rem' }}>
+          <Stat label={`Mean draws to a collision (${result.trials} runs)`} value={Math.round(result.mean).toLocaleString()} tone="accent" sub={`range ${result.min.toLocaleString()} – ${result.max.toLocaleString()}`} />
+          <Stat label="Theory: 1.25 · √space" value={Math.round(1.2533 * Math.sqrt(2 ** result.bits)).toLocaleString()} sub={`for ${result.bits}-bit values`} />
+          <Stat label="Fraction of the space used" value={`${((result.mean / 2 ** result.bits) * 100).toFixed(3)}%`} sub="collision long before the space fills" />
+        </div>
+      )}
+      <Note title="Why key and nonce sizes are what they are">
+        This square root is subtracted from every security level. A 128-bit hash does not take 2¹²⁸ attempts to collide — it
+        takes 2⁶⁴, which is feasible; that is why SHA-256 exists and MD5&apos;s 128 bits were never enough. A 64-bit random nonce
+        under one key risks repeating after 2³² messages — the keystream-reuse disaster of §2 — so GCM uses counters, and
+        ChaCha&apos;s XChaCha variant widens the nonce to 192 bits precisely so random nonces become safe. When you see a size
+        that looks twice as large as necessary, the birthday bound is usually why.
+      </Note>
+    </Panel>
+  );
+}
+
+/* Monte Carlo ----------------------------------------------------------------- */
+
+function PiPlot({ pts, label, estimate }: { pts: [number, number][]; label: string; estimate: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    const S = c.width;
+    ctx.fillStyle = '#090b0e';
+    ctx.fillRect(0, 0, S, S);
+    ctx.strokeStyle = '#3a4150';
+    ctx.beginPath();
+    ctx.arc(0, S, S - 1, -Math.PI / 2, 0);
+    ctx.stroke();
+    for (const [x, y] of pts) {
+      ctx.fillStyle = x * x + y * y <= 1 ? '#d9a441' : '#5b6472';
+      ctx.fillRect(x * (S - 2), (1 - y) * (S - 2), 1.5, 1.5);
+    }
+  }, [pts]);
+  const err = Math.abs(estimate - Math.PI);
+  return (
+    <div className="canvas-box">
+      <canvas ref={ref} width={220} height={220} aria-label={`Monte Carlo estimate of pi using ${label}`} />
+      <div className="cap">{label} — π ≈ {estimate.toFixed(4)} <span style={err > 0.01 ? { color: 'var(--danger)' } : undefined}>(off by {err.toFixed(4)})</span></div>
+    </div>
+  );
+}
+
+function MonteCarloPanel({ ready }: { ready: boolean }) {
+  const [count, setCount] = useState(10_000);
+  const [tick, setTick] = useState(0);
+
+  const toPairs = (units: number[]): [number, number][] => {
+    const out: [number, number][] = [];
+    for (let i = 0; i + 1 < units.length; i += 2) out.push([units[i], units[i + 1]]);
+    return out;
+  };
+  const estimate = (pts: [number, number][]) => (4 * pts.filter(([x, y]) => x * x + y * y <= 1).length) / Math.max(pts.length, 1);
+
+  void tick;
+  const csprng = ready ? toPairs(randomUnits(count * 2)) : [];
+  const lcgRes = ready ? attempt(() => toPairs(Array.from(wasm.Randomness.lcg(1n, 137n, 187n, 256n, count * 2)))) : null;
+  const lcg = lcgRes?.ok ? lcgRes.value : [];
+
+  return (
+    <Panel title="Randomness doing work: Monte Carlo" refs={['Monte Carlo method']}
+      action={<Button size="sm" onClick={() => setTick((t) => t + 1)} disabled={!ready}>Redraw</Button>}>
+      <p className="muted small">
+        Scatter random points in a unit square and the fraction landing inside the quarter circle estimates π/4 — no
+        geometry needed, just fair coordinates. This is the method behind pricing models, particle transport and every
+        &quot;simulate it a million times&quot; answer, and it inherits the quality of its generator: the small-modulus LCG can only
+        ever produce 256 distinct coordinate pairs, so its estimate stops improving no matter how many points you ask for.
+      </p>
+      <Field label="Points">{(id) => (
+        <Select id={id} value={count} onChange={(e) => setCount(Number(e.target.value))} disabled={!ready}>
+          {[2_000, 10_000, 50_000].map((v) => <option key={v} value={v}>{v.toLocaleString()}</option>)}
+        </Select>
+      )}</Field>
+      <div className="grid-2" style={{ marginTop: '0.5rem' }}>
+        <PiPlot pts={csprng} label="crypto.getRandomValues()" estimate={estimate(csprng)} />
+        <PiPlot pts={lcg} label="LCG, modulus 256" estimate={estimate(lcg)} />
+      </div>
+      <Note title="RANDU's legacy, quantified">
+        The lattice panel at the top of this page showed RANDU&apos;s planes as a curiosity of geometry; this panel is why it
+        mattered. Physics and statistics papers of the 1960s–70s ran exactly this kind of simulation on RANDU, and their
+        integrals converged to subtly wrong values. Cryptographic generators are overkill for simulation — good non-crypto
+        generators like PCG or xoshiro are faster — but the failure mode of a bad one is silent, systematic error.
+      </Note>
+    </Panel>
+  );
+}
+
+/* Commit–reveal --------------------------------------------------------------- */
+
+function CommitRevealPanel({ ready }: { ready: boolean }) {
+  const [aliceBit, setAliceBit] = useState<'0' | '1'>('0');
+  const [bobBit, setBobBit] = useState<'0' | '1'>('1');
+  const [nonce, setNonce] = useState('e3b0c44298fc1c149afbf4c8996fb924');
+  const [cheat, setCheat] = useState(false);
+
+  const res = ready ? attempt(() => {
+    const commit = (bit: string, n: string) => wasm.Hasher.digest('sha256', hexToBytes(`0${bit}${n}`));
+    const commitment = commit(aliceBit, nonce);
+    // If Alice cheats, she reveals the opposite bit after seeing Bob's.
+    const revealedBit = cheat ? (aliceBit === '0' ? '1' : '0') : aliceBit;
+    const recomputed = commit(revealedBit, nonce);
+    return { commitment, revealedBit, recomputed, valid: recomputed === commitment };
+  }) : null;
+  const r = res?.ok ? res.value : null;
+  const coin = r ? (Number(r.revealedBit) ^ Number(bobBit)) : 0;
+
+  return (
+    <Panel title="Agreeing on randomness: a commit–reveal coin flip" refs={['commitment scheme']}
+      action={<Button size="sm" onClick={() => setNonce(randomHex(16))} disabled={!ready}>New nonce</Button>}>
+      <p className="muted small">
+        Alice and Bob want a fair coin flip over a network, trusting nothing but hashes. Alice picks a bit and{' '}
+        <strong>commits</strong> to it by publishing SHA-256(bit ‖ nonce) — binding (she cannot find another preimage) yet
+        hiding (the random nonce stops Bob testing both bits). Bob then announces his bit in the clear. Alice{' '}
+        <strong>reveals</strong>, anyone recomputes her hash, and the coin is the XOR: heads if the bits differ. Neither
+        player can bias a coin the other half-controls.
+      </p>
+      <div className="grid-3">
+        <Field label="Alice's secret bit">{() => (
+          <Segmented label="Alice's bit" value={aliceBit} onChange={setAliceBit} disabled={!ready}
+            options={[{ value: '0', label: '0' }, { value: '1', label: '1' }]} />
+        )}</Field>
+        <Field label="Bob's bit (public, sent after the commitment)">{() => (
+          <Segmented label="Bob's bit" value={bobBit} onChange={setBobBit} disabled={!ready}
+            options={[{ value: '0', label: '0' }, { value: '1', label: '1' }]} />
+        )}</Field>
+        <Field label="Alice's behaviour">{() => (
+          <Segmented label="Alice's behaviour" value={cheat ? 'cheat' : 'honest'} onChange={(v) => setCheat(v === 'cheat')} disabled={!ready}
+            options={[{ value: 'honest', label: 'Honest' }, { value: 'cheat', label: 'Cheat' }]} />
+        )}</Field>
+      </div>
+      <ErrorText error={res && !res.ok ? res.error : null} />
+      {r && (
+        <>
+          <div className="stack">
+            <Output label="1 — Alice publishes her commitment" value={r.commitment} />
+            <Output label={`2 — Bob announces his bit: ${bobBit}`} value={`Bob cannot use the commitment: without the nonce it hides Alice's bit completely.`} copy={false} />
+            <Output label={`3 — Alice reveals bit ${r.revealedBit} and her nonce; everyone recomputes`} value={r.recomputed} tone={r.valid ? 'ok' : 'danger'} />
+          </div>
+          <div style={{ marginTop: '0.75rem' }}>
+            {r.valid
+              ? <Callout tone="ok">Commitment verifies. The coin is {r.revealedBit} ⊕ {bobBit} = <strong>{coin} — {coin ? 'heads' : 'tails'}</strong>. Alice locked her choice in before seeing Bob&apos;s, so neither side could steer it.</Callout>
+              : <Callout tone="danger">Caught. Alice tried to reveal the opposite bit after seeing Bob&apos;s, but SHA-256(new bit ‖ nonce) does not match what she published. To cheat she would need a second preimage of her own commitment.</Callout>}
+          </div>
+        </>
+      )}
+      <Note title="The same trick at protocol scale">
+        Replace the coin with anything neither party may control alone: sealed-bid auctions, leader election, and the
+        randomness beacons that lotteries and proof-of-stake chains publish are all commit–reveal at heart. It also
+        previews §11: a commitment is the first move of the Schnorr zero-knowledge proof, where &quot;reveal&quot; is replaced by an
+        algebraic answer that convinces without disclosing.
+      </Note>
+    </Panel>
+  );
+}
+
 /* Page ----------------------------------------------------------------------- */
 
 export default function RandomnessPage() {
@@ -335,6 +720,11 @@ export default function RandomnessPage() {
       <LatticePanel ready={ready} />
       <TestPanel ready={ready} collected={collected} />
       <CollectPanel ready={ready} collected={collected} setCollected={setCollected} />
+      <CsprngPanel ready={ready} setCollected={setCollected} />
+      <SamplingPanel ready={ready} />
+      <BirthdayPanel ready={ready} />
+      <MonteCarloPanel ready={ready} />
+      <CommitRevealPanel ready={ready} />
 
       <Panel title="What to actually use">
         <p className="muted small">
