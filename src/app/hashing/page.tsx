@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useWasm, wasm, attempt, errorMessage } from '@/lib/wasm';
+import { useWasm, wasm, attempt } from '@/lib/wasm';
 import { hexToBytes, hammingDistanceHex } from '@/lib/bytes';
-import { Page, Panel, Note, Field, TextInput, TextArea, Select, Segmented, Range, Output, Stat, Status, ErrorText, Button, Callout, Tag } from '@/components/ui';
+import { Page, Panel, Note, Field, TextInput, TextArea, Select, Segmented, Range, Output, Stat, Status, ErrorText, Callout, Tag } from '@/components/ui';
 
 type Fmt = 'text' | 'hex';
 
@@ -219,31 +219,6 @@ export default function HashingPage() {
   const [macMsg, setMacMsg] = useState('what do ya want for nothing?');
   const mac = ready ? attempt(() => H.hmac(macAlg, new TextEncoder().encode(macKey), new TextEncoder().encode(macMsg))) : null;
 
-  // HIBP k-anonymity
-  const [pw, setPw] = useState('password123');
-  const [hibp, setHibp] = useState<{ kind: 'ok' | 'danger' | 'warn'; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const pwSha1 = ready ? H.digest('sha1', new TextEncoder().encode(pw)).toUpperCase() : '';
-  const prefix = pwSha1.slice(0, 5), suffix = pwSha1.slice(5);
-
-  const checkHibp = async () => {
-    setBusy(true);
-    try {
-      const res = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, { headers: { 'Add-Padding': 'true' } });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      const hit = text.split('\n').map((l) => l.trim().split(':')).find(([s]) => s === suffix);
-      const count = hit ? Number(hit[1]) : 0;
-      setHibp(count > 0
-        ? { kind: 'danger', text: `Found: this password appears ${count.toLocaleString()} times in known breaches.` }
-        : { kind: 'ok', text: `Not found among the ${text.split('\n').length.toLocaleString()} hashes returned for prefix ${prefix} (padded response).` });
-    } catch (e) {
-      setHibp({ kind: 'warn', text: `Lookup failed: ${errorMessage(e)}` });
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <Page kicker="§3 · Hash functions & MACs" title="Hash functions and message authentication"
       lede="A cryptographic hash maps arbitrary input to a fixed-size digest and must be preimage-, second-preimage- and collision-resistant. Keyed with HMAC it becomes an authenticator; on its own it authenticates nothing.">
@@ -320,21 +295,22 @@ export default function HashingPage() {
           </Note>
         </Panel>
 
-        <Panel title="k-anonymity password lookup" refs={['Have I Been Pwned']}>
-          <div className="stack">
-            <Field label="Password">{(id) => <TextInput id={id} mono value={pw} onChange={(e) => { setPw(e.target.value); setHibp(null); }} disabled={!ready} />}</Field>
-            <div className="label"><span>SHA-1</span><span className="hint">prefix sent · suffix kept local</span></div>
-            <div className="hexdiff" aria-label="SHA-1 of the password"><span className="d">{prefix}</span>{suffix}</div>
-            <div className="row">
-              <Button variant="primary" onClick={checkHibp} disabled={!ready || busy}>{busy ? 'Querying…' : `Query range ${prefix || '…'}`}</Button>
-              <span className="status">GET api.pwnedpasswords.com/range/{prefix || '…'}</span>
-            </div>
-            {hibp && <Callout tone={hibp.kind}>{hibp.text}</Callout>}
-          </div>
-          <Note title="Protocol">
-            Only the first 5 hex digits (20 bits) of the SHA-1 digest leave the browser. The server returns every suffix sharing that prefix
-            (≈ 800–1,000 of them, padded to hide the count) and the match is made locally, so the service cannot learn which password was checked.
-            This is the one network request the application can make.
+        <Panel title="Querying without revealing the query" refs={['k-anonymity']}>
+          <p className="muted small">
+            Suppose you want to know whether a password appears in a corpus of two billion breached hashes that lives on
+            someone else&apos;s server. Sending the password is out of the question; sending its full hash is nearly as bad,
+            since the corpus <em>is</em> a list of hashes, so the server would learn exactly which one you asked about.
+          </p>
+          <p className="muted small">
+            The k-anonymity trick is to send only a <strong>prefix</strong> — the first 5 hex digits, 20 bits — and ask for
+            every hash that starts with it. There are around two thousand of those, so the server learns only that you asked
+            about one of a crowd of two thousand (the “k”), and the matching happens on your machine. Padding the reply to a
+            fixed size hides even the crowd&apos;s exact size. It is a general technique, not a password one: the same shape
+            protects DNS-over-HTTPS resolvers, certificate-revocation checks and safe-browsing lookups.
+          </p>
+          <Note title="Why there is no live demo">
+            This site makes no network requests at all — open the network tab and check — and that guarantee is worth more
+            here than one lookup. The offline dictionary check in §7 covers the practical question the lookup would answer.
           </Note>
         </Panel>
       </div>

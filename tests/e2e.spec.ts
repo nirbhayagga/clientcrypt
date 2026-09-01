@@ -162,14 +162,16 @@ test('numbers: modular exponentiation, Euclid, RSA and DH by hand', async ({ pag
   await expect(page.getByText('Both sides hold 2.')).toBeVisible();
 });
 
-test('privacy: states the single outbound request and is reachable from every page', async ({ page }) => {
+test('privacy: no-requests claim matches the shipped policy, reachable from every page', async ({ page }) => {
   await open(page, '/classical/');
   await page.getByRole('link', { name: 'privacy' }).click();
   await expect(page.locator('h1')).toHaveText('What this site does with your input');
-  await expect(page.getByText('first five hexadecimal')).toBeVisible();
-  // The page's central claim must match the shipped policy.
+  await expect(page.getByText('no network requests at all')).toBeVisible();
+  // The page's central claim must match the shipped policy: connect-src is
+  // exactly 'self', with no other origin permitted.
   const headers = await (await page.request.get('/_headers')).text();
-  expect(headers).toContain("connect-src 'self' https://api.pwnedpasswords.com");
+  expect(headers).toMatch(/connect-src 'self';/);
+  expect(headers).not.toContain('pwnedpasswords');
 });
 
 test('randomness: RANDU fails in 3D, the CSPRNG passes the NIST tests', async ({ page }) => {

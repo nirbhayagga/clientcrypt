@@ -1,6 +1,7 @@
 /** Node-only checks of the TypeScript helpers (no browser). */
 import { test, expect } from '@playwright/test';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { sha256, chainSha256 } from '../src/lib/sha256';
 import { bytesToHex, hexToBytes, hammingDistanceHex, formatDuration } from '../src/lib/bytes';
 
@@ -35,7 +36,20 @@ test.describe('static export', () => {
     }
     const headers = readFileSync('out/_headers', 'utf8');
     expect(headers).toContain("'wasm-unsafe-eval'");
-    expect(headers).toContain('api.pwnedpasswords.com');
+    // The site makes no network requests: connect-src is exactly 'self', and
+    // the privacy page's stated guarantee is backed by a source scan.
+    expect(headers).toMatch(/connect-src 'self';/);
+    expect(headers).not.toContain('pwnedpasswords');
+  });
+
+  test('the source makes no network requests', () => {
+    // The privacy page states this as a guarantee, so it is a test, not prose.
+    const walk = (dir: string): string[] => readdirSync(dir).flatMap((name) => {
+      const p = join(dir, name);
+      return statSync(p).isDirectory() ? walk(p) : /\.(tsx?|mjs|js)$/.test(name) ? [p] : [];
+    });
+    const offenders = walk('src').filter((f) => /\bfetch\(|XMLHttpRequest|WebSocket|sendBeacon/.test(readFileSync(f, 'utf8')));
+    expect(offenders).toEqual([]);
     // The 404 is ours, not the framework default.
     expect(readFileSync('out/404.html', 'utf8')).toContain('No such page');
     // Every route is listed in the sitemap.

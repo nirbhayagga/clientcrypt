@@ -8,7 +8,7 @@ https://clientcrypt.nirbhay.dev
 |----|---------------------------|-----------------------------------------------------------------------------------------------|----------------------------------|
 | 1  | Classical ciphers         | Caesar, Atbash, affine, Vigenère; χ²-ranked exhaustive search over the full key space, index of coincidence, key recovery | —              |
 | 2  | Block ciphers             | AES-128/192/256 in ECB, CBC, CTR, GCM; ChaCha20-Poly1305; strict PKCS#7; ECB image leakage demo | FIPS 197, SP 800-38A/D, RFC 8439 |
-| 3  | Hash functions & MACs     | MD5 through SHA3-256; the SHA-256 compression function round by round; the length extension attack; HMAC; avalanche; HIBP k-anonymity | FIPS 180-4, FIPS 202, RFC 2104 |
+| 3  | Hash functions & MACs     | MD5 through SHA3-256; the SHA-256 compression function round by round; the length extension attack; HMAC; avalanche; the k-anonymity query pattern | FIPS 180-4, FIPS 202, RFC 2104 |
 | 4  | Number theory             | Square-and-multiply modular exponentiation, extended Euclid and modular inverses, RSA and Diffie–Hellman worked by hand at toy sizes | —          |
 | 5  | Randomness                | RANDU's lattice seen in three dimensions, NIST monobit and runs tests, von Neumann extraction of pointer and CPU-jitter entropy | NIST SP 800-22 |
 | 6  | Public-key cryptography   | RSA (PKCS#1 v1.5, OAEP, PSS, key components); finite-field DH with RFC 7919 groups; X25519 agreement; Ed25519 signatures | RFC 8017, RFC 7919, RFC 7748, RFC 8032 |
@@ -18,7 +18,7 @@ https://clientcrypt.nirbhay.dev
 | 10 | Encodings                 | Base64, Base64url, hex, percent, binary; code-point and UTF-8 byte view                       | RFC 4648                         |
 | 11 | Benchmark                 | Identical chained SHA-256 workload in WebAssembly, JavaScript and WebCrypto                   | —                                |
 
-The only network request the application can make is the optional Have I Been Pwned range query in §3 (first five hex digits of a SHA-1 digest).
+The application makes **no network requests at all**: `connect-src` is `'self'` in the shipped Content-Security-Policy, and the source contains no `fetch` call. Open the network tab and nothing leaves the page.
 
 ## Correctness
 
@@ -55,7 +55,7 @@ The build is a static export (`out/`), so any static host works.
 
 **GitHub Pages** — set repository variable `DEPLOY_PAGES=true` and Pages source "GitHub Actions".
 
-`public/_headers` and `docker/nginx.conf` carry the same headers: a CSP that allows `'wasm-unsafe-eval'` and Next.js's inline hydration scripts, and `connect-src` limited to the HIBP API.
+`public/_headers` and `docker/nginx.conf` carry the same headers: a CSP that allows `'wasm-unsafe-eval'` and Next.js's inline hydration scripts, with `connect-src 'self'` — no cross-origin request is possible.
 
 ## CI
 

@@ -4,7 +4,7 @@ import { Panel, Note } from '@/components/ui';
 const CONTENTS: { num: string; href: string; title: string; topics: string; std: string }[] = [
   { num: '§1', href: '/classical/', title: 'Classical ciphers', topics: 'Caesar, Atbash, affine, Vigenère; frequency analysis, index of coincidence, exhaustive search and key recovery', std: '—' },
   { num: '§2', href: '/block-ciphers/', title: 'Block ciphers', topics: 'AES-128/192/256 in ECB, CBC, CTR and GCM; ChaCha20-Poly1305; PKCS#7 padding; ECB pattern leakage', std: 'FIPS 197 · SP 800-38A/D · RFC 8439' },
-  { num: '§3', href: '/hashing/', title: 'Hash functions & MACs', topics: 'MD5 through SHA3-256; the SHA-256 compression function round by round; length extension; HMAC; k-anonymity lookup', std: 'FIPS 180-4 · FIPS 202 · RFC 2104' },
+  { num: '§3', href: '/hashing/', title: 'Hash functions & MACs', topics: 'MD5 through SHA3-256; the SHA-256 compression function round by round; length extension; HMAC; the k-anonymity query pattern', std: 'FIPS 180-4 · FIPS 202 · RFC 2104' },
   { num: '§4', href: '/numbers/', title: 'Number theory', topics: 'Square-and-multiply modular exponentiation, extended Euclid and modular inverses, RSA and Diffie–Hellman worked by hand', std: '—' },
   { num: '§5', href: '/randomness/', title: 'Randomness', topics: 'Lattice structure in a broken generator, NIST statistical tests, and entropy collected from pointer motion and CPU timing jitter', std: 'NIST SP 800-22' },
   { num: '§6', href: '/asymmetric/', title: 'Public-key cryptography', topics: 'RSA key generation, OAEP and PSS; finite-field Diffie–Hellman; X25519 key agreement and Ed25519 signatures', std: 'RFC 8017 · RFC 7919 · RFC 7748 · RFC 8032' },
@@ -48,8 +48,9 @@ export default function Home() {
             and the handshake simulator are written for exposition.
           </p>
           <p className="muted small">
-            The only network request the application can make is the optional <em>Have I Been Pwned</em> range
-            query in §3, which transmits the first five hexadecimal digits of a SHA-1 digest and nothing else.
+            The application makes no network requests at all. Its Content-Security-Policy sets <code>connect-src</code> to
+            <code>&apos;self&apos;</code>, so nothing you enter can leave the page — verifiable from a response header or an
+            empty network tab.
           </p>
         </Panel>
 
