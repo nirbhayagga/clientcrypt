@@ -54,6 +54,17 @@ impl PasswordSecurity {
         Ok(hex::encode(out))
     }
 
+    /// scrypt (RFC 7914) with cost 2^log_n, block size r and parallelism p;
+    /// 32-byte output as hex. Memory use is roughly 128 · r · 2^log_n bytes.
+    pub fn scrypt(password: &str, salt: &[u8], log_n: u8, r: u32, p: u32) -> Result<String> {
+        let params = scrypt::Params::new(log_n, r, p, 32)
+            .map_err(|e| CryptoError::new(format!("scrypt parameters: {e}")))?;
+        let mut out = [0u8; 32];
+        scrypt::scrypt(password.as_bytes(), salt, &params, &mut out)
+            .map_err(|e| CryptoError::new(format!("scrypt: {e}")))?;
+        Ok(hex::encode(out))
+    }
+
     /// Argon2id v1.3 with memory `m_kib` KiB, `t` passes and `p` lanes; 32-byte tag as hex.
     pub fn argon2id(password: &str, salt: &[u8], m_kib: u32, t: u32, p: u32) -> Result<String> {
         let params = ParamsBuilder::new().m_cost(m_kib).t_cost(t).p_cost(p).output_len(32).build()
@@ -103,6 +114,19 @@ mod tests {
         assert_eq!(PasswordSecurity::pbkdf2_sha256("password", b"salt", 2, 32).unwrap(), "ae4d0c95af6b46d32d0adff928f06dd02a303f8ef3c251dfd6e2d85a95474c43");
         assert_eq!(PasswordSecurity::pbkdf2_sha256("password", b"salt", 4096, 32).unwrap(), "c5e478d59288c841aa530db6845c4c8d962893a001ce4e11a4963873aa98134a");
         assert!(PasswordSecurity::pbkdf2_sha256("x", b"s", 0, 32).is_err());
+    }
+
+    #[test]
+    fn scrypt_rfc_7914_vector() {
+        // RFC 7914 §12: scrypt("password", "NaCl", N=1024, r=8, p=16) — first
+        // 32 bytes of the 64-byte output.
+        assert_eq!(PasswordSecurity::scrypt("password", b"NaCl", 10, 8, 16).unwrap(),
+            "fdbabe1c9d3472007856e7190d01e9fe7c6ad7cbc8237830e77376634b373162");
+        // Cost really is a parameter: a bigger N changes the output.
+        let a = PasswordSecurity::scrypt("password", b"NaCl", 8, 8, 1).unwrap();
+        let b = PasswordSecurity::scrypt("password", b"NaCl", 9, 8, 1).unwrap();
+        assert_ne!(a, b);
+        assert!(PasswordSecurity::scrypt("x", b"s", 70, 8, 1).is_err());
     }
 
     #[test]

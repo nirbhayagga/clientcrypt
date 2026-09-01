@@ -9,10 +9,12 @@ use wasm_bindgen::prelude::*;
 
 pub mod classical;
 pub mod hashing;
+pub mod hash_internals;
 pub mod block_ciphers;
 pub mod asymmetric;
 pub mod password;
 pub mod tls;
+pub mod numbers;
 pub mod protocols;
 pub mod wireguard;
 
