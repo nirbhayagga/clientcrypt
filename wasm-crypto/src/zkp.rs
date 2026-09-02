@@ -164,7 +164,7 @@ mod tests {
 
     #[test]
     fn honest_prover_always_verifies() {
-        // Safe prime p = 2q+1 with q = 11, so p = 23, g = 5 is a generator.
+        // p = 2^31 - 1 (Mersenne prime); 7 is a primitive root of it.
         for c in ["0", "1", "7", "21", "1000"] {
             let r = schnorr_prove("2147483647", "7", "1234567", c, None).unwrap();
             assert!(r.verified, "challenge {c}");
@@ -174,16 +174,22 @@ mod tests {
 
     #[test]
     fn a_cheater_without_the_secret_fails() {
-        // Fix the nonce so the transcript is reproducible, then answer with the
-        // wrong secret: verification must fail.
+        // Fix the nonce so the transcript is reproducible; an honest run passes.
         let honest = schnorr_prove_impl("2147483647", "7", "1234567", "555", "999").unwrap();
         assert!(honest.verified);
-        // Same commitment/challenge but a response computed from a wrong x.
+        // A cheater who claims the honest y but only knows a different secret
+        // produces a response from THAT secret. Check the forged transcript
+        // (same t and c, wrong s) against the honest public key: g^s must not
+        // equal t·y^c.
         let cheat = schnorr_prove_impl("2147483647", "7", "7654321", "555", "999").unwrap();
-        // The cheater's y differs, so their own transcript still "verifies" for
-        // their own y — the real point is they cannot answer for someone else's
-        // y. Model that: verify the cheat's response against the honest y.
         assert_ne!(honest.public_y, cheat.public_y);
+        let p = BigUint::parse_bytes(b"2147483647", 10).unwrap();
+        let g = BigUint::from(7u32);
+        let y = BigUint::parse_bytes(honest.public_y.as_bytes(), 10).unwrap();
+        let t = BigUint::parse_bytes(honest.commitment_t.as_bytes(), 10).unwrap();
+        let c = BigUint::parse_bytes(honest.challenge_c.as_bytes(), 10).unwrap();
+        let forged_s = BigUint::parse_bytes(cheat.response_s.as_bytes(), 10).unwrap();
+        assert_ne!(g.modpow(&forged_s, &p), (&t * y.modpow(&c, &p)) % &p);
     }
 
     // Test helper mirroring schnorr_prove with a fixed r.

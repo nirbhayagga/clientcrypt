@@ -442,7 +442,7 @@ function SamplingPanel({ ready }: { ready: boolean }) {
       <Field label="Range to sample (0 to n−1)">{(id) => (
         <Select id={id} value={n} onChange={(e) => setN(Number(e.target.value))} disabled={!ready}>
           <option value={100}>n = 100 — % biases half the values upward by 50%</option>
-          <option value={52}>n = 52 — a card deck; 48 values land 20% hot</option>
+          <option value={52}>n = 52 — a card deck; 48 values land 25% hot</option>
           <option value={6}>n = 6 — a die; the bias is only 2.4%, but it is there</option>
         </Select>
       )}</Field>

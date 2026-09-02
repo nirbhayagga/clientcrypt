@@ -190,12 +190,19 @@ mod tests {
 
     #[test]
     fn double_step_and_validation() {
-        // The middle rotor's double-step: with rotor II (notch E) in the middle
-        // at position D, three keystrokes carry it D→E→F while the left rotor
-        // also advances once. Position after is what a real Enigma shows.
+        // The canonical double-step sequence. Start at ADV with rotors I II III:
+        // keystroke 1 — rotor III sits on its notch V, so the middle rotor
+        // steps with it: ADV → AEW. Keystroke 2 — rotor II is now on its own
+        // notch E, so it steps AGAIN and carries the left rotor: AEW → BFX.
+        assert_eq!(run(&[0, 1, 2], "ADV", "AAA", "", "A").end_positions, "AEW");
+        assert_eq!(run(&[0, 1, 2], "ADV", "AAA", "", "AA").end_positions, "BFX");
+        // Without the notch involved, only the fast rotor moves.
+        assert_eq!(run(&[0, 1, 2], "AAA", "AAA", "", "AAA").end_positions, "AAD");
+        // The turnover point reads from the visible window letter, so the ring
+        // setting shifts the wiring but not when rotors step.
+        assert_eq!(run(&[0, 1, 2], "ADV", "QQQ", "", "AA").end_positions, "BFX");
         let r = run(&[0, 1, 2], "ADU", "AAA", "", "AAA");
         assert_eq!(r.letters_enciphered, 3);
-        assert_eq!(r.end_positions.len(), 3);
         assert!(run_enigma(&[0, 0, 1], "AAA", "AAA", "", "X").is_err()); // repeated rotor
         assert!(run_enigma(&[0, 1, 2], "AA", "AAA", "", "X").is_err());  // bad positions
         assert!(run_enigma(&[0, 1, 2], "AAA", "AAA", "A1", "X").is_err()); // bad plugboard
