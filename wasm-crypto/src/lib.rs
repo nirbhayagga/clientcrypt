@@ -8,6 +8,7 @@
 use wasm_bindgen::prelude::*;
 
 pub mod classical;
+pub mod otp;
 pub mod hashing;
 pub mod hash_internals;
 pub mod block_ciphers;

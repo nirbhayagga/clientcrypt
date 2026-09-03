@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useWasm, wasm, attempt } from '@/lib/wasm';
-import { Page, Panel, Note, Field, TextInput, TextArea, Select, Segmented, Range, Output, Stat, Status, ErrorText, Button, Tag } from '@/components/ui';
+import { Page, Panel, Note, Callout, Field, TextInput, TextArea, Select, Segmented, Range, Output, Stat, Status, ErrorText, Button, Tag } from '@/components/ui';
+import { randomHex } from '@/lib/bytes';
 
 const COPRIME_A = [1, 3, 5, 7, 9, 11, 15, 17, 19, 21, 23, 25];
 const LETTERS = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
@@ -229,6 +230,8 @@ export default function ClassicalCiphers() {
       </Panel>
 
       <EnigmaPanel ready={ready} />
+      <OneTimePadPanel ready={ready} />
+      <TwoTimePadPanel ready={ready} />
     </Page>
   );
 }
@@ -308,6 +311,151 @@ function EnigmaPanel({ ready }: { ready: boolean }) {
         letter match, turning an astronomical key space into a bombe-sized search. Enigma fell not to a weakness in the rotor
         wiring but to predictable messages, reused indicator procedures, and this structural tell — the recurring lesson of
         this site: operating procedure is part of the cipher.
+      </Note>
+    </Panel>
+  );
+}
+
+/* One-time pad ---------------------------------------------------------------- */
+
+interface OtpCiphertext { key_hex: string; ciphertext_hex: string; length: number }
+interface PadReuse { c1_hex: string; c2_hex: string; xor_hex: string }
+interface CribHit { position: number; revealed: string }
+
+function OneTimePadPanel({ ready }: { ready: boolean }) {
+  const [msg, setMsg] = useState('ATTACK AT DAWN');
+  const [enc, setEnc] = useState<OtpCiphertext | null>(null);
+  const [encError, setEncError] = useState<string | null>(null);
+  const [desired, setDesired] = useState('RETREAT AT SIX');
+
+  const encrypt = () => {
+    const r = attempt(() => wasm.Otp.encrypt(msg) as OtpCiphertext);
+    if (r.ok) { setEnc(r.value); setEncError(null); } else { setEnc(null); setEncError(r.error); }
+  };
+
+  const forged = enc && ready ? attempt(() => {
+    const key = wasm.Otp.forge_key(enc.ciphertext_hex, desired) as string;
+    return { key, plaintext: wasm.Otp.decrypt(enc.ciphertext_hex, key) as string };
+  }) : null;
+
+  return (
+    <Panel title="The one-time pad: the unbreakable exception" refs={['Vernam 1917', 'Shannon 1949']}
+      action={<Button variant="primary" onClick={encrypt} disabled={!ready}>Encrypt with a fresh pad</Button>}>
+      <p className="muted small">
+        {'Every cipher above falls to statistics. This one provably cannot: XOR the message with a truly random key of '}
+        <em>exactly</em>{' its own length, used '}<em>once</em>{'. Shannon proved the intercepted ciphertext is then independent of the '}
+        {'message — and the demo below makes that concrete: for any claimed plaintext of the right length, a key exists that '}
+        {'“decrypts” to it, so the ciphertext cannot testify against any of them.'}
+      </p>
+      <Field label="Message" hint={`${new TextEncoder().encode(msg).length} bytes — the pad will match it exactly`}>{(id) => (
+        <TextInput id={id} mono value={msg} onChange={(e) => { setMsg(e.target.value); setEnc(null); }} disabled={!ready} />
+      )}</Field>
+      <ErrorText error={encError} />
+      {enc && (
+        <>
+          <div className="stack">
+            <Output label="The pad (random, same length, never reused)" value={enc.key_hex} ariaLabel="One-time pad key" />
+            <Output label="Ciphertext = message ⊕ pad" value={enc.ciphertext_hex} tone="accent" ariaLabel="One-time pad ciphertext" />
+          </div>
+          <hr className="divider" />
+          <Field label="Now claim it says something else" hint="any text with the same byte count">{(id) => (
+            <TextInput id={id} mono value={desired} onChange={(e) => setDesired(e.target.value)} disabled={!ready} />
+          )}</Field>
+          <ErrorText error={forged && !forged.ok ? forged.error : null} />
+          {forged?.ok && (
+            <>
+              <div className="stack">
+                <Output label="A key computed as ciphertext ⊕ claimed plaintext" value={forged.value.key} copy={false} />
+                <Output label="…which “decrypts” the very same ciphertext to" value={forged.value.plaintext} copy={false} ariaLabel="Forged decryption" />
+              </div>
+              <div style={{ marginTop: '0.75rem' }}>
+                <Callout tone="info">
+                  {'Both keys are uniformly random strings; nothing distinguishes the real one. An adversary holding only the '}
+                  {'ciphertext faces every '}{String(enc.length)}{'-byte message as an equally plausible decryption — that is perfect '}
+                  {'secrecy, and it holds against unlimited computing power. Only the length leaks.'}
+                </Callout>
+              </div>
+            </>
+          )}
+        </>
+      )}
+      <Note title="Why it secures almost nothing">
+        The proof charges full price: the key must be as long as all traffic ever sent, generated from true randomness,
+        delivered secretly in advance, and destroyed after one use — at which point you might as well have handed over the
+        message. The Moscow–Washington hotline really did run on couriered one-time tapes; everyone else buys{' '}
+        <em>computational</em> secrecy instead: a stream cipher (§2) stretches a 256-bit key into an endless pseudorandom pad,
+        secure only because nobody can afford the search — §13 puts numbers on what “afford” means.
+      </Note>
+    </Panel>
+  );
+}
+
+// A fixed 32-byte pad so the reuse demo renders deterministically; the XOR of
+// the two ciphertexts is independent of its value anyway — that is the flaw.
+const DEMO_PAD = '8f3a1c96d24be0755eaf01c3b8d94a26e7135f80ca6d92b4076e58d13c2af9e4';
+
+function TwoTimePadPanel({ ready }: { ready: boolean }) {
+  const [m1, setM1] = useState('the attack begins at dawn');
+  const [m2, setM2] = useState('the retreat is now sounded');
+  const [pad, setPad] = useState(DEMO_PAD);
+  const [crib, setCrib] = useState('attack');
+
+  const reused = ready ? attempt(() => wasm.Otp.pad_reuse(m1, m2, pad) as PadReuse) : null;
+  const r = reused?.ok ? reused.value : null;
+  const dragged = r && crib ? attempt(() => wasm.Otp.crib_drag(r.xor_hex, crib) as CribHit[]) : null;
+  const hits = dragged?.ok ? dragged.value : [];
+
+  return (
+    <Panel title="Break it yourself: the two-time pad" refs={['VENONA']}
+      action={<Button size="sm" onClick={() => setPad(randomHex(32))} disabled={!ready}>New pad</Button>}>
+      <p className="muted small">
+        {'The “time” in one-time is load-bearing. Encrypt two messages under the same pad and XOR the two ciphertexts: the '}
+        {'pad cancels out entirely, leaving the two plaintexts XORed with each other — no key involved. Then '}
+        <strong>crib-drag</strong>{': slide a guessed word along that stream; wherever the guess is right, the other message '}
+        {'shows through. Change the pad — the XOR below does not move.'}
+      </p>
+      <div className="grid-2">
+        <Field label="Message 1">{(id) => (
+          <TextInput id={id} mono value={m1} onChange={(e) => setM1(e.target.value)} disabled={!ready} />
+        )}</Field>
+        <Field label="Message 2">{(id) => (
+          <TextInput id={id} mono value={m2} onChange={(e) => setM2(e.target.value)} disabled={!ready} />
+        )}</Field>
+      </div>
+      <ErrorText error={reused && !reused.ok ? reused.error : null} />
+      {r && (
+        <>
+          <div className="stack">
+            <Output label="Ciphertext 1 = message 1 ⊕ pad" value={r.c1_hex} copy={false} />
+            <Output label="Ciphertext 2 = message 2 ⊕ pad" value={r.c2_hex} copy={false} />
+            <Output label="Ciphertext 1 ⊕ ciphertext 2 — the pad is gone" value={r.xor_hex} tone="accent" ariaLabel="Two-time pad XOR" />
+          </div>
+          <hr className="divider" />
+          <Field label="Crib — a word you guess appears in one message" hint="try “dawn”, “the ”, or “sounded”">{(id) => (
+            <TextInput id={id} mono value={crib} onChange={(e) => setCrib(e.target.value)} disabled={!ready} />
+          )}</Field>
+          <ErrorText error={dragged && !dragged.ok ? dragged.error : null} />
+          {dragged?.ok && (
+            <div className="table-wrap" style={{ marginTop: '0.5rem' }}>
+              <table className="table">
+                <thead><tr><th>Offset</th><th>Crib ⊕ stream — the other message, where the guess fits</th></tr></thead>
+                <tbody>
+                  {hits.map((h) => (
+                    <tr key={h.position}><td className="mono">{h.position}</td><td className="mono">{h.revealed}</td></tr>
+                  ))}
+                  {hits.length === 0 && <tr><td colSpan={2} className="muted">No offset yields printable text — wrong guess.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+      <Note title="VENONA">
+        Under wartime pressure, Soviet cipher clerks reprinted about 35,000 one-time pad pages into duplicate books. That
+        single procedural failure let US and UK cryptanalysts — reading pairs of messages exactly as above, with names and
+        stock phrases as cribs — decrypt intelligence traffic for four decades, exposing the Rosenberg and Cambridge Five
+        networks. The mathematics was perfect; the logistics were not. Nonce reuse in a modern stream cipher (§2) is this
+        same failure wearing new clothes.
       </Note>
     </Panel>
   );
