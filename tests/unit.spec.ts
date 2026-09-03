@@ -31,7 +31,7 @@ test.describe('byte helpers', () => {
 });
 
 test.describe('attack-cost arithmetic', () => {
-  test('replays Deep Crack and the cosmic scales in the §13 prose', () => {
+  test('replays Deep Crack and the cosmic scales in the §14 prose', () => {
     // EFF's Deep Crack searched ~9.2×10¹⁰ DES keys/s; expected time ≈ 4.5 days
     // (the 1998 run found the RSA challenge key in 56 hours, a lucky draw).
     const days = expectedBreakSeconds(56, 9.2e10) / 86_400;
@@ -57,7 +57,7 @@ test.describe('attack-cost arithmetic', () => {
 
 test.describe('static export', () => {
   test('ships headers, robots, sitemap and the wasm module', () => {
-    for (const f of ['out/_headers', 'out/robots.txt', 'out/sitemap.xml', 'out/pkg/wasm_crypto_bg.wasm', 'out/404.html', 'out/classical/index.html', 'out/numbers/index.html', 'out/protocols/index.html', 'out/privacy/index.html', 'out/randomness/index.html', 'out/attacks/index.html', 'out/zkp/index.html', 'out/sw.js']) {
+    for (const f of ['out/_headers', 'out/robots.txt', 'out/sitemap.xml', 'out/pkg/wasm_crypto_bg.wasm', 'out/404.html', 'out/classical/index.html', 'out/numbers/index.html', 'out/protocols/index.html', 'out/privacy/index.html', 'out/randomness/index.html', 'out/attacks/index.html', 'out/zkp/index.html', 'out/sharing/index.html', 'out/sw.js']) {
       expect(existsSync(f), f).toBe(true);
     }
     // The generated service worker precaches the whole export by route URL.
@@ -88,7 +88,7 @@ test.describe('static export', () => {
     expect(readFileSync('out/404.html', 'utf8')).toContain('No such page');
     // Every route is listed in the sitemap.
     const sitemap = readFileSync('out/sitemap.xml', 'utf8');
-    for (const r of ['', 'numbers/', 'randomness/', 'protocols/', 'attacks/', 'zkp/', 'privacy/', 'benchmark/']) {
+    for (const r of ['', 'numbers/', 'randomness/', 'protocols/', 'attacks/', 'zkp/', 'sharing/', 'privacy/', 'benchmark/']) {
       expect(sitemap, r).toContain(`https://clientcrypt.nirbhay.dev/${r}<`);
     }
   });

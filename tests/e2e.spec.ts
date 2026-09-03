@@ -388,3 +388,63 @@ test('pwa: the service worker precaches the site and serves it offline', async (
   await expect(page.getByText('Loading WebAssembly module')).toHaveCount(0, { timeout: 30_000 });
   await context.setOffline(false);
 });
+
+test('asymmetric: the toy curve group and ECDH match hand computation', async ({ page }) => {
+  await open(page, '/asymmetric/');
+  const stat = (label: string) => page.getByText(label, { exact: true }).locator('..').locator('.stat-value');
+  // y² = x³ + 2x + 2 over F₁₇: 19 points, G = (5,1) generates all of them.
+  await expect(stat('Points on the curve')).toHaveText('19');
+  await expect(stat('Order of G')).toHaveText('19');
+  // 5G = (9, 16): G→2G(6,3)→3G(10,6)→4G(3,1)→5G, checked by hand.
+  await expect(stat('kG for k = 5')).toHaveText('(9, 16)');
+  // ECDH with a = 3, b = 7: shared point 21G = 2G = (6, 3); dlog falls in 3 steps.
+  await expect(page.getByLabel('Toy ECDH shared secret')).toContainText('(6, 3)');
+  await expect(stat('Eavesdropper brute-forced a')).toHaveText('3 steps');
+});
+
+test('randomness: distinguishing game scores a round, fair roll audits clean', async ({ page }) => {
+  await open(page, '/randomness/');
+  await page.getByRole('button', { name: 'Deal a round' }).click();
+  await expect(page.getByLabel('Distinguishing line A')).not.toBeEmpty();
+  await page.getByRole('button', { name: 'A is the generator', exact: true }).click();
+  await expect(page.getByText(/of 1 round/)).toBeVisible();
+  // Provably fair roll: commit, roll twice, reveal, audit.
+  await page.getByRole('button', { name: 'New game' }).click();
+  await expect(page.getByLabel('House commitment')).toContainText(/[0-9a-f]{64}/);
+  await page.getByRole('button', { name: 'Roll', exact: true }).click();
+  await page.getByRole('button', { name: 'Roll', exact: true }).click();
+  await expect(page.getByLabel('Fair rolls')).toContainText(/\d+, \d+/);
+  await page.getByRole('button', { name: 'End game & reveal seed' }).click();
+  await expect(page.getByText('Audit passed', { exact: false })).toBeVisible();
+});
+
+test('hashing: Merkle proof verifies and catches tampering, Lamport key forges after reuse', async ({ page }) => {
+  test.slow();
+  await open(page, '/hashing/');
+  await expect(page.getByLabel('Merkle root')).toContainText(/[0-9a-f]{64}/);
+  await expect(page.getByText('Proof verdict').locator('..').locator('.stat-value')).toHaveText('included');
+  await field(page, 'Record as claimed to the verifier').fill('carol pays dan 9');
+  await expect(page.getByText('Proof verdict').locator('..').locator('.stat-value')).toHaveText('NOT in the tree');
+  // Lamport: one signature verifies; a second signature under the same key
+  // lets the attacker forge a third message with no key material.
+  await page.getByRole('button', { name: 'Generate a one-time key' }).click();
+  await page.getByRole('button', { name: 'Sign message 1' }).click();
+  await expect(page.getByText('Signature verifies', { exact: true }).locator('..').locator('.stat-value')).toHaveText('yes');
+  await page.getByRole('button', { name: 'Sign message 2' }).click();
+  await page.getByRole('button', { name: 'Forge a signature (no key needed)' }).click();
+  await expect(page.getByLabel('Forged Lamport message')).toContainText('pay Mallory ');
+  await expect(page.getByText('Forged signature verifies against the real public key').locator('..').locator('.stat-value')).toHaveText('yes');
+});
+
+test('sharing: k shares reconstruct, k−1 shares fit any claimed secret', async ({ page }) => {
+  await open(page, '/sharing/');
+  await page.getByRole('button', { name: 'Split the secret' }).click();
+  await expect(page.getByLabel('Dealing polynomial')).toContainText('f(x) = 31337');
+  for (const s of ['Share #1', 'Share #2', 'Share #3']) {
+    await page.getByRole('button', { name: s }).click();
+  }
+  await expect(page.getByText('Recovered f(0)').locator('..').locator('.stat-value')).toHaveText('31337');
+  // Drop to k−1 shares: the forged polynomial matches the claimed secret.
+  await page.getByRole('button', { name: 'Share #3' }).click();
+  await expect(page.getByLabel('Forged polynomial')).toContainText('f(x) = 999999999');
+});
