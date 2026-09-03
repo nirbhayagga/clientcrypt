@@ -3,8 +3,8 @@
 //! For every bit of the message digest the signer prepares two random secrets
 //! and publishes their hashes; a signature reveals, per bit, the secret on
 //! that bit's side. Security is exactly preimage resistance — no number
-//! theory, which is why hash-based schemes (SPHINCS+, the standardised
-//! ML-DSA alternative) survive a quantum computer. The catch is in the name:
+//! theory, which is why hash-based schemes (SPHINCS+, standardised as
+//! SLH-DSA) survive a quantum computer. The catch is in the name:
 //! sign TWO messages with one key and the revealed halves combine into
 //! forgeries, demonstrated below.
 //!
@@ -122,7 +122,6 @@ pub fn lamport_forge(msg1: &str, reveal1: &[String], msg2: &str, reveal2: &[Stri
     let b1 = digest_bits(msg1);
     let b2 = digest_bits(msg2);
     let free: Vec<u32> = (0..BITS).filter(|&i| b1[i] != b2[i]).map(|i| i as u32).collect();
-    let fixed = BITS - free.len();
     // Positions where both messages agree pin that bit; free positions accept either.
     let forgeable = 2f64.powi(free.len() as i32);
 
@@ -143,7 +142,6 @@ pub fn lamport_forge(msg1: &str, reveal1: &[String], msg2: &str, reveal2: &[Stri
         forged_message = Some(candidate);
         break;
     }
-    let _ = fixed;
     Ok(LamportForgery {
         free_positions: free,
         forgeable_digests: forgeable,
