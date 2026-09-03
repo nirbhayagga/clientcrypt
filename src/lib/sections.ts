@@ -12,6 +12,7 @@ export const SECTIONS = [
   { href: '/protocols/', num: '§9', label: 'Applied protocols' },
   { href: '/attacks/', num: '§10', label: 'Attacks' },
   { href: '/zkp/', num: '§11', label: 'Zero-knowledge proofs' },
-  { href: '/encoding/', num: '§12', label: 'Encodings' },
-  { href: '/benchmark/', num: '§13', label: 'WASM vs JS benchmark' },
+  { href: '/sharing/', num: '§12', label: 'Secret sharing' },
+  { href: '/encoding/', num: '§13', label: 'Encodings' },
+  { href: '/benchmark/', num: '§14', label: 'WASM vs JS benchmark' },
 ] as const;

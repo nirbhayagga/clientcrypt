@@ -13,8 +13,9 @@ const CONTENTS: { num: string; href: string; title: string; topics: string; std:
   { num: '§9', href: '/protocols/', title: 'Applied protocols', topics: 'WPA2-PSK key derivation, TOTP/HOTP one-time passwords, JWT signing, and the WireGuard handshake', std: 'IEEE 802.11i · RFC 6238 · RFC 7519' },
   { num: '§10', href: '/attacks/', title: 'Attacks', topics: 'The CBC padding-oracle attack and a man-in-the-middle on unauthenticated Diffie–Hellman', std: 'Vaudenay 2002' },
   { num: '§11', href: '/zkp/', title: 'Zero-knowledge proofs', topics: 'The Schnorr identification protocol, interactive and via Fiat\u2013Shamir as a signature', std: 'Schnorr 1991' },
-  { num: '§12', href: '/encoding/', title: 'Encodings', topics: 'Base64, Base64url, hex, URL and binary encodings; these are not encryption', std: 'RFC 4648' },
-  { num: '§13', href: '/benchmark/', title: 'WASM vs JS benchmark', topics: 'Identical SHA-256 workload in Rust/WebAssembly, plain JavaScript and WebCrypto', std: '—' },
+  { num: '§12', href: '/sharing/', title: 'Secret sharing', topics: 'Shamir’s threshold scheme: split a secret, reconstruct from any k shares, and see k−1 reveal nothing', std: 'Shamir 1979' },
+  { num: '§13', href: '/encoding/', title: 'Encodings', topics: 'Base64, Base64url, hex, URL and binary encodings; these are not encryption', std: 'RFC 4648' },
+  { num: '§14', href: '/benchmark/', title: 'WASM vs JS benchmark', topics: 'Identical SHA-256 workload in Rust/WebAssembly, plain JavaScript and WebCrypto', std: '—' },
 ];
 
 const CRATES: [string, string][] = [

@@ -384,7 +384,7 @@ function OneTimePadPanel({ ready }: { ready: boolean }) {
         delivered secretly in advance, and destroyed after one use — at which point you might as well have handed over the
         message. The Moscow–Washington hotline really did run on couriered one-time tapes; everyone else buys{' '}
         <em>computational</em> secrecy instead: a stream cipher (§2) stretches a 256-bit key into an endless pseudorandom pad,
-        secure only because nobody can afford the search — §13 puts numbers on what “afford” means.
+        secure only because nobody can afford the search — §14 puts numbers on what “afford” means.
       </Note>
     </Panel>
   );

@@ -51,7 +51,7 @@ export default function BenchmarkPage() {
   const fastest = Math.min(...Object.values(results).map((r) => r.ms));
 
   return (
-    <Page kicker="§13 · Benchmark" title="WebAssembly versus JavaScript"
+    <Page kicker="§14 · Benchmark" title="WebAssembly versus JavaScript"
       lede="The same workload in three runtimes: a chain of SHA-256 computations where each input is the previous digest, so the work cannot be parallelised or skipped. All three must arrive at the same final digest.">
       <Status state={state} />
 
