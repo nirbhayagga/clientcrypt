@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useWasm, wasm } from '@/lib/wasm';
-import { bytesToHex, formatMs } from '@/lib/bytes';
+import { bytesToHex, formatMs, formatDuration } from '@/lib/bytes';
 import { chainSha256, sha256 } from '@/lib/sha256';
-import { Page, Panel, Note, Range, Stat, Status, Button, Callout, Output } from '@/components/ui';
+import { TARGETS, ADVERSARIES, expectedBreakSeconds, universeAges, formatBig } from '@/lib/attack';
+import { Page, Panel, Note, Range, Segmented, Stat, Status, Button, Callout, Output } from '@/components/ui';
 
 type Result = { ms: number; digest: string };
 type Runner = 'wasm' | 'js' | 'webcrypto';
@@ -108,6 +109,8 @@ export default function BenchmarkPage() {
         </Panel>
       )}
 
+      <BreakPanel measuredRate={results.wasm ? iterations / (results.wasm.ms / 1000) : null} />
+
       <Note title="Reading the numbers">
         WebAssembly wins on predictable integer arithmetic because it skips type speculation and deoptimisation, but a good JIT is not far behind on
         this kind of code. WebCrypto pays an asynchronous round trip per digest, which dominates at this message size; on large messages it is the fastest by far.
@@ -115,5 +118,69 @@ export default function BenchmarkPage() {
         (AES-ECB, Argon2, X25519 as a raw function) that WebCrypto does not expose.
       </Note>
     </Page>
+  );
+}
+
+/* Attack cost ----------------------------------------------------------------- */
+
+function BreakPanel({ measuredRate }: { measuredRate: number | null }) {
+  const [advId, setAdvId] = useState('rig');
+  const adv = ADVERSARIES.find((a) => a.id === advId)!;
+  const rate = advId === 'device' && measuredRate ? measuredRate : adv.rate;
+
+  return (
+    <Panel title="The attacker’s benchmark: how long to break it" refs={['NIST SP 800-57']}>
+      <p className="muted small">
+        {'The benchmark above measures the defender; this table runs the same arithmetic for the attacker. A key search '}
+        {'expects to test half the key space, so the time is 2ᵇ⁻¹ ÷ rate. RSA and elliptic curves are listed at their '}
+        <em>equivalent</em>{' strengths from NIST SP 800-57: “RSA-2048 ≈ 112 bits” means the number field sieve costs roughly '}
+        {'as much as a 2¹¹² symmetric search — the attack is cleverer, and that cleverness is already priced in.'}
+      </p>
+      <Segmented label="Adversary" value={advId} onChange={setAdvId}
+        options={ADVERSARIES.map((a) => ({ value: a.id, label: a.name }))} />
+      <p className="muted small" style={{ marginTop: '0.5rem' }}>
+        {advId === 'device'
+          ? (measuredRate
+            ? `${formatBig(measuredRate)} guesses/s — your measured single-thread SHA-256 rate from the benchmark above, used as a stand-in for key tests.`
+            : 'Assuming 10⁷ guesses/s for now — run the WebAssembly benchmark above and this row switches to your device’s measured rate.')
+          : adv.note}
+      </p>
+      <div className="table-wrap">
+        <table className="table">
+          <thead><tr><th>Target</th><th>Strength</th><th>The attack</th><th>Expected time</th><th>Ages of the universe</th><th>Quantum outlook</th></tr></thead>
+          <tbody>
+            {TARGETS.map((t) => {
+              const s = expectedBreakSeconds(t.bits, rate);
+              const ages = universeAges(s);
+              return (
+                <tr key={t.name}>
+                  <td>{t.name}{t.note ? <div className="muted small">{t.note}</div> : null}</td>
+                  <td className="mono">{`2^${t.bits}`}</td>
+                  <td>{t.attack}</td>
+                  <td className="mono">{formatDuration(s)}</td>
+                  <td className="mono">{ages >= 0.01 ? formatBig(ages) : '—'}</td>
+                  <td>{t.quantum}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: '1rem' }}>
+        <Callout tone="info">
+          {'The interesting line is AES-128 against all of Bitcoin: about five billion years — roughly the Sun’s remaining '}
+          {'lifetime, using every mining ASIC on the planet for nothing else. Uncomfortably finite as cosmic numbers go, '}
+          {'which is why new designs default to 256-bit keys: AES-256 costs 2¹²⁸ times more, and no growth curve rescues that.'}
+        </Callout>
+      </div>
+      <Note title="What “broken” means in practice">
+        Nobody brute-forces well-chosen keys; every real break in this site’s attack sections (§10) is a shortcut — a padding
+        oracle, a reused nonce, an unauthenticated handshake. The table is the reason those shortcuts are the whole game:
+        against the mathematics itself, the economics are hopeless. The one genuine schedule-changer is a fault-tolerant
+        quantum computer, which is why post-quantum key exchange is being deployed years before one exists — browsers
+        already ship hybrid ML-KEM in TLS, and WireGuard&apos;s optional pre-shared key (§9) hedges the same risk. Traffic
+        recorded today can be decrypted then.
+      </Note>
+    </Panel>
   );
 }
