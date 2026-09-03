@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useWasm, wasm, attempt } from '@/lib/wasm';
 import { hexToBytes, hammingDistanceHex } from '@/lib/bytes';
-import { Page, Panel, Note, Field, TextInput, TextArea, Select, Segmented, Range, Output, Stat, Status, ErrorText, Callout, Tag } from '@/components/ui';
+import { Page, Panel, Note, Field, TextInput, TextArea, Select, Segmented, Range, Output, Stat, Status, ErrorText, Callout, Tag, Button } from '@/components/ui';
 
 type Fmt = 'text' | 'hex';
 
@@ -319,6 +319,10 @@ export default function HashingPage() {
 
       <LengthExtensionPanel ready={ready} />
 
+      <MerklePanel ready={ready} />
+
+      <LamportPanel ready={ready} />
+
       <Note title="Not the same “hashing”">
         This section is about <em>cryptographic</em> hash functions, where the design goals are preimage and collision resistance. The other
         meaning — hash <em>tables</em>, with chaining, open addressing and rehashing — is a data-structures topic with entirely different goals
@@ -327,5 +331,214 @@ export default function HashingPage() {
         <a href="https://stepwise.nirbhay.dev" target="_blank" rel="noreferrer">Stepwise</a>, a companion site for algorithms and data structures.
       </Note>
     </Page>
+  );
+}
+
+/* Merkle trees ----------------------------------------------------------------- */
+
+interface MerkleTree { levels: string[][]; root: string; leaves: number; proof_length: number }
+interface ProofStep { sibling: string; right: boolean }
+interface MerkleProof { index: number; leaf: string; leaf_hash: string; steps: ProofStep[]; root: string }
+interface MerkleVerifyResult { computed_root: string; matches: boolean; trail: string[] }
+
+const MERKLE_DEFAULT = ['alice pays bob 5', 'bob pays carol 3', 'carol pays dan 8', 'dan pays erin 2', 'erin pays alice 1', 'frank pays grace 13'].join('\n');
+
+function MerklePanel({ ready }: { ready: boolean }) {
+  const [records, setRecords] = useState(MERKLE_DEFAULT);
+  const [index, setIndex] = useState(2);
+  const [claim, setClaim] = useState<string | null>(null);
+
+  const lines = records.split('\n').filter((l) => l.trim() !== '');
+  const idx = Math.min(index, Math.max(0, lines.length - 1));
+  const tree = ready ? attempt(() => wasm.Merkle.tree(records) as MerkleTree) : null;
+  const proof = ready ? attempt(() => wasm.Merkle.proof(records, idx) as MerkleProof) : null;
+  const claimed = claim ?? (lines[idx] ?? '');
+  const verify = ready && tree?.ok && proof?.ok
+    ? attempt(() => wasm.Merkle.verify(claimed, proof.value.steps, tree.value.root) as MerkleVerifyResult)
+    : null;
+
+  return (
+    <Panel title="Merkle trees: one hash for a million records" refs={['RFC 6962 hashing']}>
+      <p className="muted small">
+        {'Hash each record (with a 00 prefix), then hash pairs upward (with 01) until one '}<strong>root</strong>{' remains. '}
+        {'That single digest now commits to every record — and any one of them can be proved present with just the '}
+        {'log₂(n) sibling hashes along its path. Certificate Transparency logs, Bitcoin block headers and software-update '}
+        {'transparency all hand out exactly this proof so verifiers never need the whole data set.'}
+      </p>
+      <Field label="Records — one per line" hint="up to 64">{(id) => (
+        <TextArea id={id} mono rows={4} value={records} onChange={(e) => { setRecords(e.target.value); setClaim(null); }} disabled={!ready} />
+      )}</Field>
+      <ErrorText error={tree && !tree.ok ? tree.error : null} />
+      {tree?.ok && (
+        <>
+          <div style={{ marginTop: '0.5rem', overflowX: 'auto' }}>
+            {[...tree.value.levels].reverse().map((level, li) => (
+              <div key={li} className="mono small" style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', padding: '0.15rem 0' }}>
+                {level.map((h, i) => {
+                  const isRoot = li === 0;
+                  return <span key={i} style={{ color: isRoot ? 'var(--accent)' : undefined }} className={isRoot ? '' : 'muted'}>{h.slice(0, 8)}</span>;
+                })}
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: '0.5rem' }}>
+            <Output label="Merkle root" value={tree.value.root} tone="accent" ariaLabel="Merkle root" />
+          </div>
+          <hr className="divider" />
+          <div className="grid-2">
+            <Field label="Prove this record">{(id) => (
+              <Select id={id} value={idx} onChange={(e) => { setIndex(Number(e.target.value)); setClaim(null); }} disabled={!ready}>
+                {lines.map((l, i) => <option key={i} value={i}>{`#${i} — ${l.slice(0, 40)}`}</option>)}
+              </Select>
+            )}</Field>
+            <Field label="Record as claimed to the verifier" hint="edit it to watch the proof fail">{(id) => (
+              <TextInput id={id} mono value={claimed} onChange={(e) => setClaim(e.target.value)} disabled={!ready} />
+            )}</Field>
+          </div>
+          {proof?.ok && (
+            <div className="stack" style={{ marginTop: '0.5rem' }}>
+              <Output label={`Inclusion proof — ${proof.value.steps.length} sibling hash${proof.value.steps.length === 1 ? '' : 'es'} instead of ${tree.value.leaves} records`}
+                value={proof.value.steps.map((st, i) => `${i + 1}. ${st.right ? 'right' : 'left '} ${st.sibling}`).join('\n')} copy={false} scroll />
+            </div>
+          )}
+          {verify?.ok && (
+            <div className="grid-2" style={{ marginTop: '0.75rem' }}>
+              <Stat label="Recomputed root" value={verify.value.computed_root.slice(0, 16) + '…'} sub="leaf hash folded with each sibling" />
+              <Stat label="Proof verdict" value={verify.value.matches ? 'included' : 'NOT in the tree'} tone={verify.value.matches ? 'ok' : 'danger'}
+                sub={verify.value.matches ? 'the claimed record is committed by the root' : 'one changed character moves every hash on the path'} />
+            </div>
+          )}
+        </>
+      )}
+      <Note title="Why the 00/01 prefixes matter">
+        Without domain separation a 64-byte “record” equal to two concatenated hashes would collide with an interior node,
+        letting an attacker prove a record that was never logged (CVE-2012-2459 hit Bitcoin over exactly this class of
+        confusion). Prefixing leaves with 00 and nodes with 01 — as Certificate Transparency specifies — makes the two
+        hash domains disjoint. The crate&apos;s tests pin this property.
+      </Note>
+    </Panel>
+  );
+}
+
+/* Lamport one-time signatures --------------------------------------------------- */
+
+interface LamportKey { secret: [string, string][]; public: [string, string][] }
+interface LamportSig { message: string; bits: number[]; reveal: string[] }
+interface LamportVerifyResult { bits: number[]; bit_ok: boolean[]; verified: boolean }
+interface LamportForgeryResult {
+  free_positions: number[]; forgeable_digests: number; forged_message: string | null;
+  forged_reveal: string[]; attempts: number; verified: boolean;
+}
+
+function LamportPanel({ ready }: { ready: boolean }) {
+  const [key, setKey] = useState<LamportKey | null>(null);
+  const [msg1, setMsg1] = useState('pay Alice 5');
+  const [msg2, setMsg2] = useState('pay Bob 999');
+  const [prefix, setPrefix] = useState('pay Mallory ');
+  const [sig1, setSig1] = useState<LamportSig | null>(null);
+  const [sig2, setSig2] = useState<LamportSig | null>(null);
+  const [forgery, setForgery] = useState<LamportForgeryResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const flat = (pairs: [string, string][]) => pairs.flat();
+  const keygen = () => {
+    const r = attempt(() => wasm.Lamport.keygen() as LamportKey);
+    if (r.ok) { setKey(r.value); setSig1(null); setSig2(null); setForgery(null); setError(null); } else setError(r.error);
+  };
+  const sign = (msg: string, set: (s: LamportSig) => void) => {
+    if (!key) return;
+    const r = attempt(() => wasm.Lamport.sign(flat(key.secret), msg) as LamportSig);
+    if (r.ok) { set(r.value); setForgery(null); setError(null); } else setError(r.error);
+  };
+  const forge = () => {
+    if (!sig1 || !sig2) return;
+    const r = attempt(() => wasm.Lamport.forge(sig1.message, sig1.reveal, sig2.message, sig2.reveal, prefix) as LamportForgeryResult);
+    if (r.ok) { setForgery(r.value); setError(null); } else setError(r.error);
+  };
+
+  const check = (msg: string, reveal: string[]) => key
+    ? attempt(() => wasm.Lamport.verify(flat(key.public), msg, reveal) as LamportVerifyResult)
+    : null;
+  const v1 = sig1 ? check(sig1.message, sig1.reveal) : null;
+  const vForged = forgery?.forged_message ? check(forgery.forged_message, forgery.forged_reveal) : null;
+
+  return (
+    <Panel title="Hash-based signatures — and why they are one-time" refs={['Lamport 1979']}
+      action={<Button variant="primary" onClick={keygen} disabled={!ready}>Generate a one-time key</Button>}>
+      <p className="muted small">
+        {'A signature scheme built from nothing but SHA-256. For each bit of the message digest the signer keeps two random '}
+        {'secrets and publishes their hashes; signing reveals, per bit, the secret on that bit’s side. Forging means finding '}
+        {'a preimage — no factoring, no curves, which is why hash-based designs (SPHINCS+, standardised as SLH-DSA) are the '}
+        {'conservative post-quantum choice: Grover halves the exponent and nothing else is known to bite. Toy-sized here: '}
+        {'16 digest bits instead of 256.'}
+      </p>
+      {key && (
+        <>
+          <div className="stack">
+            <Output label="Public key — H(secret) per bit and side (truncated)" copy={false} scroll
+              value={key.public.map((p, i) => `bit ${String(i).padStart(2)}: 0→${p[0].slice(0, 12)}… 1→${p[1].slice(0, 12)}…`).join('\n')} />
+          </div>
+          <hr className="divider" />
+          <div className="grid-2">
+            <Field label="Message 1">{(id) => <TextInput id={id} mono value={msg1} onChange={(e) => setMsg1(e.target.value)} disabled={!ready} />}</Field>
+            <div style={{ alignSelf: 'flex-end' }}><Button onClick={() => sign(msg1, setSig1)} disabled={!ready}>Sign message 1</Button></div>
+          </div>
+          {sig1 && v1?.ok && (
+            <div className="stack" style={{ marginTop: '0.5rem' }}>
+              <Output label={`Digest bits ${sig1.bits.join('')} — the signature reveals one secret per bit`} copy={false} scroll
+                value={sig1.reveal.map((r, i) => `bit ${String(i).padStart(2)} = ${sig1.bits[i]}: ${r.slice(0, 12)}…`).join('\n')} />
+              <Stat label="Signature verifies" value={v1.value.verified ? 'yes' : 'no'} tone={v1.value.verified ? 'ok' : 'danger'}
+                sub="verifier hashes each revealed secret and compares to the public key" />
+            </div>
+          )}
+          {sig1 && (
+            <>
+              <hr className="divider" />
+              <div className="grid-2">
+                <Field label="Message 2 — breaking the one-time rule" hint="same key, second signature">{(id) => (
+                  <TextInput id={id} mono value={msg2} onChange={(e) => setMsg2(e.target.value)} disabled={!ready} />
+                )}</Field>
+                <div style={{ alignSelf: 'flex-end' }}><Button onClick={() => sign(msg2, setSig2)} disabled={!ready}>Sign message 2</Button></div>
+              </div>
+            </>
+          )}
+          {sig1 && sig2 && (
+            <>
+              <div className="grid-2" style={{ marginTop: '0.5rem' }}>
+                <Field label="Attacker's message prefix" hint="the forger appends a counter">{(id) => (
+                  <TextInput id={id} mono value={prefix} onChange={(e) => setPrefix(e.target.value)} disabled={!ready} />
+                )}</Field>
+                <div style={{ alignSelf: 'flex-end' }}><Button variant="primary" onClick={forge} disabled={!ready}>Forge a signature (no key needed)</Button></div>
+              </div>
+              {forgery && (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <div className="grid-3">
+                    <Stat label="Positions with both secrets" value={forgery.free_positions.length} sub={`bits where the two digests differ`} />
+                    <Stat label="Digests now signable" value={forgery.forgeable_digests.toLocaleString()} sub={`of ${(2 ** 16).toLocaleString()} possible`} />
+                    <Stat label="Search attempts" value={forgery.attempts.toLocaleString()} sub="counters tried against the revealed bits" />
+                  </div>
+                  {forgery.forged_message && vForged?.ok ? (
+                    <div className="stack" style={{ marginTop: '0.75rem' }}>
+                      <Output label="Forged message — never signed by the key holder" value={forgery.forged_message} tone="danger" ariaLabel="Forged Lamport message" />
+                      <Stat label="Forged signature verifies against the real public key" value={vForged.value.verified ? 'yes' : 'no'}
+                        tone={vForged.value.verified ? 'danger' : 'ok'} sub="assembled purely from the two published signatures" />
+                    </div>
+                  ) : (
+                    <p className="muted small" style={{ marginTop: '0.5rem' }}>No forgeable message found in the search budget — try a different prefix.</p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+      <ErrorText error={error} />
+      <Note title="From one-time to many">
+        One key, one signature — that is the entire contract, and the forgery above is what its breach costs. Real systems
+        stack one-time keys into a Merkle tree (the panel above signs the tree root, in effect) so one root authenticates
+        thousands of one-time keys: that is XMSS, and with more machinery, SPHINCS+. Bitcoin&apos;s advice never to reuse an
+        address echoes the same instinct.
+      </Note>
+    </Panel>
   );
 }

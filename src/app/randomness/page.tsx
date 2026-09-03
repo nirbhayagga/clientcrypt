@@ -721,10 +721,12 @@ export default function RandomnessPage() {
       <TestPanel ready={ready} collected={collected} />
       <CollectPanel ready={ready} collected={collected} setCollected={setCollected} />
       <CsprngPanel ready={ready} setCollected={setCollected} />
+      <DistinguishPanel ready={ready} />
       <SamplingPanel ready={ready} />
       <BirthdayPanel ready={ready} />
       <MonteCarloPanel ready={ready} />
       <CommitRevealPanel ready={ready} />
+      <FairRollPanel ready={ready} />
 
       <Panel title="What to actually use">
         <p className="muted small">
@@ -751,5 +753,195 @@ export default function RandomnessPage() {
         </p>
       </Panel>
     </Page>
+  );
+}
+
+/* The distinguishing game ------------------------------------------------------ */
+
+type Opponent = 'chacha' | 'lcg';
+
+// Full-period byte LCG (Hull–Dobell: c odd, a ≡ 1 mod 4): never repeats a byte
+// within 256 draws — the tell a careful player can learn to spot.
+function lcgBytes(seed: number, n: number): Uint8Array {
+  const out = new Uint8Array(n);
+  let x = seed & 0xff;
+  for (let i = 0; i < n; i++) {
+    x = (137 * x + 187) & 0xff;
+    out[i] = x;
+  }
+  return out;
+}
+
+function DistinguishPanel({ ready }: { ready: boolean }) {
+  const [opponent, setOpponent] = useState<Opponent>('chacha');
+  const [round, setRound] = useState<{ a: string; b: string; prngIs: 0 | 1 } | null>(null);
+  const [verdict, setVerdict] = useState<{ correct: boolean; prngIs: 0 | 1 } | null>(null);
+  const [score, setScore] = useState({ chacha: { wins: 0, rounds: 0 }, lcg: { wins: 0, rounds: 0 } });
+
+  const deal = () => {
+    const truly = new Uint8Array(32);
+    crypto.getRandomValues(truly);
+    const prng = opponent === 'chacha'
+      ? hexToBytes(wasm.Randomness.csprng_stream(randomHex(32), 0n, 32))
+      : lcgBytes(crypto.getRandomValues(new Uint8Array(1))[0], 32);
+    const prngIs = (crypto.getRandomValues(new Uint8Array(1))[0] & 1) as 0 | 1;
+    setRound({ a: bytesToHex(prngIs === 0 ? prng : truly), b: bytesToHex(prngIs === 1 ? prng : truly), prngIs });
+    setVerdict(null);
+  };
+
+  const guess = (which: 0 | 1) => {
+    if (!round) return;
+    const correct = which === round.prngIs;
+    setVerdict({ correct, prngIs: round.prngIs });
+    setScore((s) => ({ ...s, [opponent]: { wins: s[opponent].wins + (correct ? 1 : 0), rounds: s[opponent].rounds + 1 } }));
+  };
+
+  const distinct = (hex: string) => new Set(hexToBytes(hex)).size;
+  const sc = score[opponent];
+
+  return (
+    <Panel title="The distinguishing game" refs={['IND definition']}
+      action={<Button variant="primary" onClick={deal} disabled={!ready}>Deal a round</Button>}>
+      <p className="muted small">
+        {'“Computationally secure” has a precise game behind it: one line below came from '}<code>crypto.getRandomValues()</code>
+        {', the other from a deterministic generator. If no efficient player can guess which is which better than 50%, the '}
+        {'generator is a secure PRG — that indistinguishability is the actual definition, and everything in §2 and §8 rests on '}
+        {'it. Against ChaCha20 you cannot win. Against the toy LCG you can: its full period never repeats a byte in 32 draws, '}
+        {'while true randomness repeats one about 87% of the time — pick the line with all bytes distinct and you will be '}
+        {'right roughly 9 rounds in 10.'}
+      </p>
+      <Segmented label="Opponent" value={opponent} onChange={(v) => { setOpponent(v); setRound(null); setVerdict(null); }} disabled={!ready}
+        options={[{ value: 'chacha', label: 'ChaCha20 CSPRNG' }, { value: 'lcg', label: 'LCG (full period)' }]} />
+      {round && (
+        <>
+          <div className="stack" style={{ marginTop: '0.75rem' }}>
+            <Output label={`Line A — ${distinct(round.a)}/32 distinct bytes`} value={round.a} copy={false} ariaLabel="Distinguishing line A" />
+            <Output label={`Line B — ${distinct(round.b)}/32 distinct bytes`} value={round.b} copy={false} ariaLabel="Distinguishing line B" />
+          </div>
+          <div className="row" style={{ marginTop: '0.75rem', gap: '0.5rem' }}>
+            <Button onClick={() => guess(0)} disabled={!ready || verdict !== null}>A is the generator</Button>
+            <Button onClick={() => guess(1)} disabled={!ready || verdict !== null}>B is the generator</Button>
+          </div>
+        </>
+      )}
+      {verdict && (
+        <div style={{ marginTop: '0.75rem' }}>
+          <Callout tone={verdict.correct ? 'ok' : 'danger'}>
+            {verdict.correct ? 'Correct — ' : 'Wrong — '}
+            {`line ${verdict.prngIs === 0 ? 'A' : 'B'} was the ${opponent === 'chacha' ? 'ChaCha20 stream' : 'LCG'}, line ${verdict.prngIs === 0 ? 'B' : 'A'} came from the OS.`}
+          </Callout>
+        </div>
+      )}
+      {sc.rounds > 0 && (
+        <div style={{ marginTop: '0.75rem' }}>
+          <Stat label={`Your score vs ${opponent === 'chacha' ? 'ChaCha20' : 'the LCG'}`} value={`${sc.wins} of ${sc.rounds} round${sc.rounds === 1 ? '' : 's'}`}
+            sub={`${((100 * sc.wins) / sc.rounds).toFixed(0)}% — ${opponent === 'chacha' ? 'expect 50% no matter your strategy' : 'the distinct-bytes tell beats 90%'}`} />
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+/* A provably fair roll --------------------------------------------------------- */
+
+// Uniform integer in [1, n] by rejection sampling (§ modulo bias, applied).
+function fairRoll(bytes: Uint8Array, n: number): { value: number; used: number } | null {
+  const limit = 256 - (256 % n);
+  for (let i = 0; i < bytes.length; i++) {
+    if (bytes[i] < limit) return { value: (bytes[i] % n) + 1, used: i + 1 };
+  }
+  return null;
+}
+
+function FairRollPanel({ ready }: { ready: boolean }) {
+  const [sides, setSides] = useState(52);
+  const [clientSeed, setClientSeed] = useState('my lucky words');
+  const [game, setGame] = useState<{ serverSeed: string; commit: string; nonce: number; rolls: number[] } | null>(null);
+  const [revealed, setRevealed] = useState(false);
+
+  const newGame = () => {
+    const serverSeed = randomHex(32);
+    const commit = wasm.Hasher.digest('sha256', hexToBytes(serverSeed));
+    setGame({ serverSeed, commit, nonce: 0, rolls: [] });
+    setRevealed(false);
+  };
+
+  const roll = () => {
+    if (!game || revealed) return;
+    const msg = new TextEncoder().encode(`${clientSeed}:${game.nonce}`);
+    const digest = wasm.Hasher.hmac('sha256', hexToBytes(game.serverSeed), msg);
+    const r = fairRoll(hexToBytes(digest), sides);
+    if (!r) return;
+    setGame({ ...game, nonce: game.nonce + 1, rolls: [...game.rolls, r.value] });
+  };
+
+  // Verification recomputes every roll from the revealed seed — pure function
+  // of public values, so the player can audit the whole session.
+  const audit = game && revealed ? attempt(() => {
+    if (wasm.Hasher.digest('sha256', hexToBytes(game.serverSeed)) !== game.commit) return false;
+    return game.rolls.every((v, i) => {
+      const d = wasm.Hasher.hmac('sha256', hexToBytes(game.serverSeed), new TextEncoder().encode(`${clientSeed}:${i}`));
+      return fairRoll(hexToBytes(d), sides)?.value === v;
+    });
+  }) : null;
+
+  return (
+    <Panel title="A provably fair roll" refs={['commit–reveal, applied']}
+      action={<Button variant="primary" onClick={newGame} disabled={!ready}>New game</Button>}>
+      <p className="muted small">
+        {'The commit–reveal coin flip above, grown into the scheme gambling sites actually ship as “provably fair”. The house '}
+        {'picks a hidden server seed and publishes only its hash — the commitment, shown before you play. Each roll is '}
+        {'HMAC(server seed, your seed + a counter), reduced to the range by rejection sampling (no modulo bias). The house '}
+        {'cannot change the seed after your bets without breaking the hash; you contributed entropy, so it could not pick a '}
+        {'seed that beats you; and after the reveal you recompute every roll yourself.'}
+      </p>
+      <div className="grid-2">
+        <Field label="Range" hint="a die, a deck, a wheel">{(id) => (
+          <Select id={id} value={sides} onChange={(e) => setSides(Number(e.target.value))} disabled={!ready}>
+            <option value={6}>1–6 — a die</option>
+            <option value={37}>1–37 — a roulette wheel</option>
+            <option value={52}>1–52 — a card deck</option>
+            <option value={100}>1–100 — percent roll</option>
+          </Select>
+        )}</Field>
+        <Field label="Your client seed" hint="your contribution to every roll">{(id) => (
+          <TextInput id={id} mono value={clientSeed} onChange={(e) => setClientSeed(e.target.value)} disabled={!ready || (game !== null && game.rolls.length > 0)} />
+        )}</Field>
+      </div>
+      {game && (
+        <>
+          <div className="stack" style={{ marginTop: '0.5rem' }}>
+            <Output label="House commitment = SHA-256(server seed), published before play" value={game.commit} ariaLabel="House commitment" />
+            {revealed && <Output label="Server seed, revealed after play" value={game.serverSeed} tone="accent" />}
+          </div>
+          <div className="row" style={{ marginTop: '0.75rem', gap: '0.5rem' }}>
+            <Button onClick={roll} disabled={!ready || revealed}>Roll</Button>
+            <Button onClick={() => setRevealed(true)} disabled={!ready || revealed || game.rolls.length === 0}>End game &amp; reveal seed</Button>
+          </div>
+          {game.rolls.length > 0 && (
+            <div style={{ marginTop: '0.75rem' }}>
+              <Output label={`Rolls (nonce 0…${game.rolls.length - 1})`} value={game.rolls.join(', ')} copy={false} ariaLabel="Fair rolls" />
+            </div>
+          )}
+          {revealed && audit && (
+            <div style={{ marginTop: '0.75rem' }}>
+              <Callout tone={audit.ok && audit.value ? 'ok' : 'danger'}>
+                {audit.ok && audit.value
+                  ? 'Audit passed: the revealed seed matches the commitment, and every roll recomputes from seed + your words + nonce. The house had no room to cheat.'
+                  : 'Audit FAILED — the house cheated or the transcript is corrupt.'}
+              </Callout>
+            </div>
+          )}
+        </>
+      )}
+      <Note title="True randomness and the house">
+        {'Where does the “true” randomness come from? '}<code>crypto.getRandomValues()</code>{' is the OS pool — interrupt '}
+        {'timings, hardware jitter, on-die noise — stretched by exactly the CSPRNG construction shown above, and that is the '}
+        {'right tool for shuffles, wheels and keys alike (with rejection sampling for ranges — §modulo bias). What a casino '}
+        {'needs on top is not better randomness but '}<em>accountability</em>{': the player must be able to verify the house, '}
+        {'and that is a cryptography problem, solved here with a hash commitment. Real sites publish the next server-seed '}
+        {'hash while the current one is in play, chaining every session to the last.'}
+      </Note>
+    </Panel>
   );
 }

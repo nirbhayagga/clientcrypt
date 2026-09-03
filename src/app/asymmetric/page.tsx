@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useWasm, wasm, attempt, errorMessage } from '@/lib/wasm';
 import { hexToText } from '@/lib/bytes';
-import { Page, Panel, Note, Field, TextInput, Select, Segmented, Output, Status, ErrorText, Button, Callout, Tag } from '@/components/ui';
+import { Page, Panel, Note, Field, TextInput, Select, Segmented, Output, Stat, Status, ErrorText, Button, Callout, Tag } from '@/components/ui';
 
 interface RsaComponents { bits: number; n: string; e: string; d: string; p: string; q: string }
 interface Group { name: string; bits: number; p_hex: string; g_hex: string; safe_prime: boolean }
@@ -274,6 +274,166 @@ export default function AsymmetricPage() {
         </div>
         {xsA?.ok && xsB?.ok && <div style={{ marginTop: '1rem' }}><Callout tone={xsA.value === xsB.value ? 'ok' : 'danger'}>{xsA.value === xsB.value ? 'Both sides derive the same 32-byte secret; TLS feeds it into HKDF (§8) rather than using it directly.' : 'Secrets differ.'}</Callout></div>}
       </Panel>
+
+      <EcCurvePanel ready={ready} />
+      <EcDhPanel ready={ready} />
     </Page>
+  );
+}
+
+/* Elliptic curves, visibly ----------------------------------------------------- */
+
+interface EcPoint { x: number; y: number }
+interface EcSubgroup { multiples: EcPoint[]; order: number; curve_points: number }
+interface EcScalarStep { bit: number; op: string; point: EcPoint | null }
+interface EcScalarMult { result: EcPoint | null; steps: EcScalarStep[] }
+interface EcDhResult {
+  alice_public: EcPoint | null; bob_public: EcPoint | null;
+  shared_alice: EcPoint | null; shared_bob: EcPoint | null;
+  agree: boolean; dlog_found: number;
+}
+
+function CurvePlot({ p, pts, g, target }: { p: number; pts: EcPoint[]; g: EcPoint | null; target: EcPoint | null }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    const S = c.width;
+    const scale = (S - 14) / Math.max(1, p - 1);
+    const px = (v: number) => 7 + v * scale;
+    const py = (v: number) => S - 7 - v * scale;
+    ctx.fillStyle = '#090b0e';
+    ctx.fillRect(0, 0, S, S);
+    for (const pt of pts) {
+      ctx.fillStyle = '#5b6472';
+      ctx.beginPath();
+      ctx.arc(px(pt.x), py(pt.y), 2.5, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+    if (g) {
+      ctx.fillStyle = '#d9a441';
+      ctx.beginPath();
+      ctx.arc(px(g.x), py(g.y), 4, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+    if (target) {
+      ctx.strokeStyle = '#d9a441';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(px(target.x), py(target.y), 7, 0, 2 * Math.PI);
+      ctx.stroke();
+    }
+  }, [p, pts, g, target]);
+  return (
+    <div className="canvas-box">
+      <canvas ref={ref} width={260} height={260} aria-label={`The ${pts.length} affine points of the elliptic curve`} />
+      <div className="cap">{'every (x, y) with y² ≡ x³ + ax + b — filled dot: G, ring: kG'}</div>
+    </div>
+  );
+}
+
+function EcCurvePanel({ ready }: { ready: boolean }) {
+  const [p, setP] = useState('17');
+  const [a, setA] = useState('2');
+  const [b, setB] = useState('2');
+  const [gx, setGx] = useState('5');
+  const [gy, setGy] = useState('1');
+  const [k, setK] = useState('5');
+
+  const num = (s: string) => Number(s.trim() || 'NaN');
+  const pts = ready ? attempt(() => wasm.Ecc.points(num(p), num(a), num(b)) as EcPoint[]) : null;
+  const sub = ready ? attempt(() => wasm.Ecc.subgroup(num(p), num(a), num(b), num(gx), num(gy)) as EcSubgroup) : null;
+  const mult = ready ? attempt(() => wasm.Ecc.scalar_mult(num(p), num(a), num(b), num(gx), num(gy), num(k)) as EcScalarMult) : null;
+  const error = [pts, sub, mult].find((r) => r && !r.ok);
+  const kG = mult?.ok ? mult.value.result : null;
+
+  return (
+    <Panel title="Elliptic curves, visibly" refs={['toy curve over F_p']}>
+      <p className="muted small">
+        {'X25519 above treats the curve as a black box. This is the box: over a field of only '}{ready && pts?.ok ? String(num(p)) : 'p'}
+        {' elements, the “curve” y² = x³ + ax + b is a scatter of points — and they form a group. Adding two points means '}
+        {'drawing the line through them and reflecting the third intersection; adding a point to itself uses the tangent. '}
+        {'Repeated addition is the one-way street: computing kG is fast (double-and-add, below), but recovering k from kG '}
+        {'means walking the whole group. Here that walk is trivial; on Curve25519 it is 2¹²⁶ steps.'}
+      </p>
+      <div className="grid-3">
+        <Field label="Prime p" hint="3–997">{(id) => <TextInput id={id} mono value={p} onChange={(e) => setP(e.target.value)} disabled={!ready} />}</Field>
+        <Field label="Curve a">{(id) => <TextInput id={id} mono value={a} onChange={(e) => setA(e.target.value)} disabled={!ready} />}</Field>
+        <Field label="Curve b">{(id) => <TextInput id={id} mono value={b} onChange={(e) => setB(e.target.value)} disabled={!ready} />}</Field>
+      </div>
+      <div className="grid-3">
+        <Field label="Generator G: x">{(id) => <TextInput id={id} mono value={gx} onChange={(e) => setGx(e.target.value)} disabled={!ready} />}</Field>
+        <Field label="Generator G: y">{(id) => <TextInput id={id} mono value={gy} onChange={(e) => setGy(e.target.value)} disabled={!ready} />}</Field>
+        <Field label="Scalar k" hint="compute kG">{(id) => <TextInput id={id} mono value={k} onChange={(e) => setK(e.target.value)} disabled={!ready} />}</Field>
+      </div>
+      <ErrorText error={error && !error.ok ? error.error : null} />
+      {pts?.ok && sub?.ok && (
+        <div className="grid-2" style={{ marginTop: '0.75rem', alignItems: 'start' }}>
+          <CurvePlot p={num(p)} pts={pts.value} g={{ x: num(gx), y: num(gy) }} target={kG ?? null} />
+          <div className="stack">
+            <Stat label="Points on the curve" value={sub.value.curve_points} sub="including the point at infinity O" />
+            <Stat label="Order of G" value={sub.value.order} sub="smallest k with kG = O" />
+            <Stat label={`kG for k = ${num(k) || '—'}`} value={kG ? `(${kG.x}, ${kG.y})` : 'O (infinity)'} tone="accent" sub="ringed on the plot" />
+          </div>
+        </div>
+      )}
+      {mult?.ok && (
+        <>
+          <div className="label" style={{ margin: '0.75rem 0 0.4rem' }}><span>{'Double-and-add: k in binary, one step per bit'}</span></div>
+          <div className="mono small" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem 1.2rem' }}>
+            {mult.value.steps.map((st, i) => (
+              <span key={i} className="muted">{`${i + 1}. ${st.op} → ${st.point ? `(${st.point.x}, ${st.point.y})` : 'O'}`}</span>
+            ))}
+          </div>
+        </>
+      )}
+      <Note title="Why curves won">
+        The best discrete-log attacks in ℤ_p* (index calculus) exploit the fact that integers factor; curve points do not,
+        so the generic attack (Pollard&apos;s rho, √n steps) is the best known. That is why 256-bit curves match 3072-bit RSA/DH:
+        no shortcut structure to exploit — assuming a curve with nothing up its sleeve, which is exactly the argument for
+        Curve25519&apos;s fully-explained constants.
+      </Note>
+    </Panel>
+  );
+}
+
+function EcDhPanel({ ready }: { ready: boolean }) {
+  const [alice, setAlice] = useState('3');
+  const [bob, setBob] = useState('7');
+
+  const num = (s: string) => Number(s.trim() || 'NaN');
+  const dh = ready ? attempt(() => wasm.Ecc.dh(17, 2, 2, 5, 1, num(alice), num(bob)) as EcDhResult) : null;
+  const r = dh?.ok ? dh.value : null;
+  const fmt = (pt: EcPoint | null) => (pt ? `(${pt.x}, ${pt.y})` : 'O');
+
+  return (
+    <Panel title="ECDH on the toy curve — and why the toy falls" refs={['y² = x³ + 2x + 2 over F₁₇, G = (5, 1)']}>
+      <p className="muted small">
+        {'The X25519 exchange above, replayed where you can check every step by hand: Alice sends aG, Bob sends bG, both '}
+        {'compute abG. The eavesdropper sees aG and bG — and on this curve simply walks G, 2G, 3G… until Alice’s point '}
+        {'appears, recovering her secret. The entire security difference between this and Curve25519 is the size of that walk.'}
+      </p>
+      <div className="grid-2">
+        <Field label="Alice's secret a" hint="an integer ≥ 1">{(id) => <TextInput id={id} mono value={alice} onChange={(e) => setAlice(e.target.value)} disabled={!ready} />}</Field>
+        <Field label="Bob's secret b">{(id) => <TextInput id={id} mono value={bob} onChange={(e) => setBob(e.target.value)} disabled={!ready} />}</Field>
+      </div>
+      <ErrorText error={dh && !dh.ok ? dh.error : null} />
+      {r && (
+        <>
+          <div className="grid-2" style={{ marginTop: '0.5rem' }}>
+            <Output label="Alice sends aG" value={fmt(r.alice_public)} copy={false} />
+            <Output label="Bob sends bG" value={fmt(r.bob_public)} copy={false} />
+            <Output label="Alice computes a·(bG)" value={fmt(r.shared_alice)} copy={false} tone="accent" ariaLabel="Toy ECDH shared secret" />
+            <Output label="Bob computes b·(aG)" value={fmt(r.shared_bob)} copy={false} tone="accent" />
+          </div>
+          <div className="grid-2" style={{ marginTop: '0.75rem' }}>
+            <Stat label="Shared secrets agree" value={r.agree ? 'yes' : 'no'} tone={r.agree ? 'ok' : 'danger'} sub="abG = baG — scalar multiplication commutes" />
+            <Stat label="Eavesdropper brute-forced a" value={`${r.dlog_found} steps`} tone="danger" sub="Curve25519 would need ~2¹²⁶ — see §14 for what that costs" />
+          </div>
+        </>
+      )}
+    </Panel>
   );
 }
