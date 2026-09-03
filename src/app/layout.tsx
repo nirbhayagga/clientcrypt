@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { IBM_Plex_Sans, IBM_Plex_Serif, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 import Sidebar from '@/components/Sidebar';
+import Pwa from '@/components/Pwa';
 import pkg from '../../package.json';
 
 const sans = IBM_Plex_Sans({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-sans', display: 'swap' });
@@ -42,6 +43,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <Sidebar version={pkg.version} />
           <main className="main">{children}</main>
         </div>
+        <Pwa />
       </body>
     </html>
   );

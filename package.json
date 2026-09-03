@@ -1,11 +1,11 @@
 {
   "name": "clientcrypt",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build:wasm": "wasm-pack build wasm-crypto --release --target web --out-dir ../public/pkg",
-    "build:web": "next build",
+    "build:web": "next build && node scripts/gen-sw.mjs",
     "build": "npm run build:wasm && npm run build:web",
     "preview": "serve out",
     "lint": "eslint",
