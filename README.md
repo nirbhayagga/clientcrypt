@@ -6,7 +6,7 @@ https://clientcrypt.nirbhay.dev
 
 | §  | Section                   | Contents                                                                                      | Standards                        |
 |----|---------------------------|-----------------------------------------------------------------------------------------------|----------------------------------|
-| 1  | Classical ciphers         | Caesar, Atbash, affine, Vigenère; χ²-ranked exhaustive search, index of coincidence, key recovery; an Enigma I with historical rotor wirings | —              |
+| 1  | Classical ciphers         | Caesar, Atbash, affine, Vigenère; χ²-ranked exhaustive search, index of coincidence, key recovery; an Enigma I with historical rotor wirings; the one-time pad's perfect secrecy (forge a key for any claimed plaintext) and the two-time-pad crib-drag attack | Shannon 1949   |
 | 2  | Block ciphers             | AES-128/192/256 in ECB, CBC, CTR, GCM; ChaCha20-Poly1305; reduced-round and keystream-reuse image demos; strict PKCS#7; ECB leakage | FIPS 197, SP 800-38A/D, RFC 8439 |
 | 3  | Hash functions & MACs     | MD5 through SHA3-256; the SHA-256 compression function round by round; the length extension attack; HMAC; avalanche; the k-anonymity query pattern | FIPS 180-4, FIPS 202, RFC 2104 |
 | 4  | Number theory             | Square-and-multiply modular exponentiation, extended Euclid and modular inverses, RSA and Diffie–Hellman worked by hand at toy sizes | —          |
@@ -18,9 +18,11 @@ https://clientcrypt.nirbhay.dev
 | 10 | Attacks                   | The CBC padding-oracle attack recovering plaintext from a one-bit oracle, and a man-in-the-middle on unauthenticated Diffie–Hellman | Vaudenay 2002 |
 | 11 | Zero-knowledge proofs     | The Schnorr identification protocol run interactively, then made non-interactive (a signature) with Fiat–Shamir | Schnorr 1991                     |
 | 12 | Encodings                 | Base64, Base64url, hex, percent, binary; code-point and UTF-8 byte view                       | RFC 4648                         |
-| 13 | Benchmark                 | Identical chained SHA-256 workload in WebAssembly, JavaScript and WebCrypto                   | —                                |
+| 13 | Benchmark                 | Identical chained SHA-256 workload in WebAssembly, JavaScript and WebCrypto; expected break times for DES through AES-256 and RSA/ECC at SP 800-57 equivalent strengths, from your measured rate up to the whole Bitcoin network | NIST SP 800-57 |
 
 The application makes **no network requests at all**: `connect-src` is `'self'` in the shipped Content-Security-Policy, and the source contains no `fetch` call. Open the network tab and nothing leaves the page.
+
+It is also an installable PWA that works fully offline: a generated service worker precaches the entire static export (including the WebAssembly module), so after one visit the site runs with the network cable unplugged.
 
 ## Correctness
 

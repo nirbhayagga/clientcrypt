@@ -4,6 +4,7 @@ import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { sha256, chainSha256 } from '../src/lib/sha256';
 import { bytesToHex, hexToBytes, hammingDistanceHex, formatDuration } from '../src/lib/bytes';
+import { TARGETS, expectedBreakSeconds, universeAges, formatBig } from '../src/lib/attack';
 
 test.describe('pure-JS SHA-256', () => {
   test('FIPS 180-4 vectors', () => {
@@ -29,11 +30,44 @@ test.describe('byte helpers', () => {
   });
 });
 
+test.describe('attack-cost arithmetic', () => {
+  test('replays Deep Crack and the cosmic scales in the §13 prose', () => {
+    // EFF's Deep Crack searched ~9.2×10¹⁰ DES keys/s; expected time ≈ 4.5 days
+    // (the 1998 run found the RSA challenge key in 56 hours, a lucky draw).
+    const days = expectedBreakSeconds(56, 9.2e10) / 86_400;
+    expect(days).toBeGreaterThan(4);
+    expect(days).toBeLessThan(5);
+    // The panel's headline claim: AES-128 against every Bitcoin ASIC on earth
+    // (~10²¹ ops/s) still expects ~5 billion years.
+    const years = expectedBreakSeconds(128, 1e21) / 31_557_600;
+    expect(years).toBeGreaterThan(4e9);
+    expect(years).toBeLessThan(7e9);
+    // AES-256 costs exactly 2¹²⁸ times more, as the Callout states.
+    expect(expectedBreakSeconds(256, 1e21) / expectedBreakSeconds(128, 1e21)).toBe(2 ** 128);
+    expect(universeAges(4.35e17)).toBe(1);
+    expect(formatBig(5.39e20)).toBe('5.4 × 10²⁰');
+    expect(formatBig(123)).toBe('123');
+    // SP 800-57 equivalences the table depends on.
+    const bits = Object.fromEntries(TARGETS.map((t) => [t.name, t.bits]));
+    expect(bits['RSA-2048']).toBe(112);
+    expect(bits['RSA-3072']).toBe(bits['AES-128']);
+    expect(bits['X25519 / P-256']).toBe(128);
+  });
+});
+
 test.describe('static export', () => {
   test('ships headers, robots, sitemap and the wasm module', () => {
-    for (const f of ['out/_headers', 'out/robots.txt', 'out/sitemap.xml', 'out/pkg/wasm_crypto_bg.wasm', 'out/404.html', 'out/classical/index.html', 'out/numbers/index.html', 'out/protocols/index.html', 'out/privacy/index.html', 'out/randomness/index.html', 'out/attacks/index.html', 'out/zkp/index.html']) {
+    for (const f of ['out/_headers', 'out/robots.txt', 'out/sitemap.xml', 'out/pkg/wasm_crypto_bg.wasm', 'out/404.html', 'out/classical/index.html', 'out/numbers/index.html', 'out/protocols/index.html', 'out/privacy/index.html', 'out/randomness/index.html', 'out/attacks/index.html', 'out/zkp/index.html', 'out/sw.js']) {
       expect(existsSync(f), f).toBe(true);
     }
+    // The generated service worker precaches the whole export by route URL.
+    const sw = readFileSync('out/sw.js', 'utf8');
+    expect(sw).toMatch(/clientcrypt-[0-9a-f]{16}/);
+    for (const asset of ['"/"', '"/zkp/"', '"/pkg/wasm_crypto_bg.wasm"', '"/site.webmanifest"']) {
+      expect(sw, asset).toContain(asset);
+    }
+    expect(sw).not.toContain('index.html"'); // routes, not file paths
+    expect(sw).not.toContain('_headers');
     const headers = readFileSync('out/_headers', 'utf8');
     expect(headers).toContain("'wasm-unsafe-eval'");
     // The site makes no network requests: connect-src is exactly 'self', and

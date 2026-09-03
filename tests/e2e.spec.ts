@@ -347,3 +347,44 @@ test('zkp: Schnorr proof verifies and the Fiat-Shamir signature detects tamperin
   await expect(page.getByText('Signature verifies').locator('..')).toContainText('yes');
   await expect(page.getByText('Same signature on a tampered message').locator('..')).toContainText('rejected');
 });
+
+test('classical: one-time pad forgery and two-time pad crib drag', async ({ page }) => {
+  await open(page, '/classical/');
+  await page.getByRole('button', { name: 'Encrypt with a fresh pad' }).click();
+  // Perfect secrecy, live: a forged key decrypts the SAME ciphertext to the claim.
+  await expect(page.getByLabel('One-time pad ciphertext')).not.toBeEmpty();
+  await expect(page.getByLabel('Forged decryption')).toContainText('RETREAT AT SIX');
+  // Two-time pad: the default crib "attack" (message 1, offset 4) reveals
+  // message 2 there — "retrea" of "the retreat is now sounded".
+  await expect(page.getByRole('cell', { name: 'retrea', exact: true })).toBeVisible();
+  await field(page, 'Crib').fill('dawn');
+  await expect(page.getByRole('cell', { name: 'unde', exact: true })).toBeVisible();
+});
+
+test('benchmark: attack-cost table scales with the adversary', async ({ page }) => {
+  await open(page, '/benchmark/');
+  const aes128 = page.locator('tr', { hasText: 'AES-128' });
+  await expect(aes128).toContainText('years');
+  await expect(page.locator('tr', { hasText: 'RSA-2048' })).toContainText('GNFS factoring');
+  await expect(page.locator('tr', { hasText: 'X25519' })).toContainText('Shor: broken outright');
+  await page.getByRole('group', { name: 'Adversary' }).getByRole('button', { name: 'All of Bitcoin' }).click();
+  // Every mining ASIC on earth: DES falls instantly, AES-128 takes ~5 billion years.
+  await expect(page.locator('tr', { hasText: 'Deep Crack' })).toContainText('< 1 ms');
+  await expect(aes128).toContainText('billion years');
+});
+
+test('pwa: the service worker precaches the site and serves it offline', async ({ page, context }) => {
+  test.slow();
+  await open(page, '/');
+  // Registration is suppressed under automation (navigator.webdriver), so
+  // register explicitly; ready resolves once the worker is active, i.e. the
+  // precache completed.
+  await page.evaluate(() => navigator.serviceWorker.register('/sw.js').then(() => undefined));
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  await context.setOffline(true);
+  await page.goto('/zkp/');
+  await expect(page.locator('h1')).toHaveText('Proving without revealing');
+  // The wasm module comes out of the cache too.
+  await expect(page.getByText('Loading WebAssembly module')).toHaveCount(0, { timeout: 30_000 });
+  await context.setOffline(false);
+});
